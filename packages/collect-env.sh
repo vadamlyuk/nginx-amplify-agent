@@ -10,6 +10,8 @@
 
 agent_conf_path="/etc/amplify-agent"
 agent_conf_file="${agent_conf_path}/agent.conf"
+agent_log_file="/var/log/amplify-agent/agent.log"
+api_url="https://receiver.amplify.nginx.com:443/1.1"
 
 found_nginx_master=""
 found_nginx_user=""
@@ -285,11 +287,29 @@ if cat /proc/1/cgroup | grep -v '.*/$' > /dev/null 2>&1; then
     echo ""
 fi
 
-if ! mount | egrep 'proc|sysfs' > /dev/null 2>&1; then
-    echo "===> can find procfs or sysfs mounts"
-    mount | egrep 'proc|sysfs'
+echo "===> checking /proc:"
+if mount | egrep 'proc|sysfs' > /dev/null 2>&1; then
+    nginx_workers="`ps -xa -o pid,command | egrep 'nginx[:].*worker process' | awk '{print $1}'`"
+
+    echo " ---> ls -lad /proc:"
+    ls -lad /proc
     echo ""
+
+    if [ -n "${nginx_workers}" ]; then
+	echo ' ---> /proc/${pid}/io and /proc/${pid}/limits:'
+	for i in ${nginx_workers}; do
+	    ls -la /proc/${i}/io
+	    ls -la /proc/${i}/limits
+	done
+    else
+	echo " ---> can't find any nginx workers."
+    fi
+else
+    echo " ---> can find procfs or sysfs mounts"
+    mount | egrep 'proc|sysfs'
 fi
+
+echo ""
 
 if [ -f /etc/resolv.conf ]; then
     echo "===> /etc/resolf.conf is:"
@@ -305,6 +325,20 @@ fi
 echo "===> environment variables:"
 set | \
 egrep 'PATH|SHELL|TERM|USER|HOSTNAME|HOSTTYPE|LOGNAME|MACHTYPE|OSTYPE|SUDO_USER|SUDO_COMMAND'
+
+echo ""
+
+if [ -f "${agent_log_file}" ]; then
+    echo "===> tail -20 /var/log/amplify-agent/agent.log"
+    tail -20 /var/log/amplify-agent/agent.log
+else
+    echo "===> can't find ${agent_log_file}"
+fi
+
+echo ""
+
+echo "===> testing connectivity to Amplify:"
+curl -I ${api_url}
 
 echo ""
 
