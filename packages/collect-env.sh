@@ -324,23 +324,32 @@ echo ""
 pkg_cmd=""
 
 case "${os}" in
-    centos|rhel|amzn)
-	pkg_cmd="rpm -qi"
-	;;
     ubuntu|debian)
-	pkg_cmd="dpkg -s"
+	pkg_cmd1="dpkg -s"
+	pkg_cmd2="dpkg -L"
+	;;
+    centos|rhel|amzn)
+	pkg_cmd1="rpm -qi"
+	pkg_cmd2="rpm -ql"
 	;;
     *)
 	;;
 esac
 
-if [ -n "${pkg_cmd}" ]; then
-    echo "===> ${pkg_cmd}"
-    echo " ---> checking package nginx-amplify-agent"
-    ${pkg_cmd} nginx-amplify-agent 2>&1
+if [ -n "${pkg_cmd1}" -a -n "${pkg_cmd2}" ]; then
+    echo "===> checking packages:"
     echo ""
-    echo " ---> checking package nginx"
-    ${pkg_cmd} nginx 2>&1
+    echo " ---> ${pkg_cmd1} nginx-amplify-agent"
+    ${pkg_cmd1} nginx-amplify-agent 2>&1
+    echo ""
+    echo " ---> ${pkg_cmd2} nginx-amplify-agent | grep 'agent\(.py\)*$'"
+    ${pkg_cmd2} nginx-amplify-agent 2>&1 | grep 'agent\(.py\)*$' 2>&1
+    echo ""
+    echo " ---> ${pkg_cmd1} nginx"
+    ${pkg_cmd1} nginx 2>&1
+    echo ""
+    echo " ---> ${pkg_cmd2} nginx | | grep 'nginx$'"
+    ${pkg_cmd2} nginx 2>&1 | grep 'nginx$' 2>&1
     echo ""
 fi
 
