@@ -1,12 +1,40 @@
 #!/bin/sh
 #
-# This script collects various configuration information about
-# the OS, the nginx, and the Amplify agent environments.
+# Copyright (C) Nginx, Inc.
 #
-#
-# TODO
-# --
-#
+
+cat <<-EOM >&2
+	#
+	# HEADS UP:
+	#
+	# This script will collect various configuration information about
+	# the OS, the nginx, and the Amplify Agent environments.
+	#
+	# It is intended to be used only while DEBUGGING a failed installation,
+	# or while examining obscure problems with the metric collection.
+	#
+	# This script is NOT part of the Amplify Agent runtime.
+	# It DOES NOT send anything anywhere on its own.
+	# It is NOT installed by default, and it is NOT ever
+	# being invoked automatically.
+	#
+	# The script will use standard OS utilities to gather an
+	# understanding of the OS, package and user environment.
+	#
+	# The script DOES NOT change any system parameters or
+	# configuration. All output is simply to STDOUT.
+	#
+	# Some of the output might be sensitive to the administrator.
+	# If anything sensitive pops up in the script output,
+	# please REVIEW it thoroughly before sharing for debug
+	# purposes.
+	#
+	# The script should be run under root privileges.
+	#
+	# Example:
+	# sh collect-env.sh > collect-env.log
+	#
+EOM
 
 agent_conf_path="/etc/amplify-agent"
 agent_conf_file="${agent_conf_path}/agent.conf"
@@ -17,6 +45,26 @@ found_nginx_master=""
 found_nginx_user=""
 found_agent_conf=""
 found_lsb_release=""
+
+if [ "`id -u`" != "0" ]; then
+    echo ""
+    echo "This script should be run under root privileges."
+    echo "exiting."
+
+    exit 1
+fi
+
+echo "" >&2
+/bin/echo -n "Continue (y/n)? " >&2
+
+read answer && \
+test "${answer}" = "y" -o \
+     "${answer}" = "Y" -o \
+     "${answer}" = "yes" -o \
+     "${answer}" = "Yes" || \
+exit 1
+
+echo "Collecting data.." >&2
 
 nginx_master=`ps axu | grep -i '[:] master.*nginx'`
 
@@ -52,14 +100,16 @@ if [ -n "${nginx_master}" ]; then
 	    echo ""
 	fi
 
-	echo " ---> ps -xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'"
-	ps -xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'
-	echo ""
-
+	echo " ---> ps xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'"
+	ps xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'
     done
 
     IFS=$IFS_OLD
+else
+    echo "===> no nginx master process(es) found!"
 fi
+
+echo ""
 
 if id nginx > /dev/null 2>&1; then
     echo "===> found nginx user:"
@@ -75,7 +125,7 @@ if [ -e /etc/nginx ]; then
 
     if grep -R "stub_status" /etc/nginx/* > /dev/null 2>&1; then
         echo "===> found stub_status somewhere inside /etc/nginx/*"
-        grep -R "stub_status" /etc/nginx/*
+        grep -n -R "stub_status" /etc/nginx/*
         echo ""
     fi
 fi
@@ -146,6 +196,19 @@ if [ "${found_agent_conf}" = "yes" ]; then
     ps axu | grep -i '[^/]amplify[-]'
     echo ""
 fi
+
+if command -V python > /dev/null 2>&1; then
+    echo "===> Python version:"
+    python --version 2>&1
+else
+    echo "===> Python not found!"
+fi
+
+echo ""
+
+echo "===> uname -a"
+uname -a
+echo ""
 
 centos_flavor="centos"
 
@@ -288,8 +351,12 @@ if cat /proc/1/cgroup | grep -v '.*/$' > /dev/null 2>&1; then
 fi
 
 echo "===> checking /proc:"
+echo " ---> mount | egrep 'proc|sysfs'"
+mount | egrep 'proc|sysfs'
+echo ""
+
 if mount | egrep 'proc|sysfs' > /dev/null 2>&1; then
-    nginx_workers="`ps -xa -o pid,command | egrep 'nginx[:].*worker process' | awk '{print $1}'`"
+    nginx_workers="`ps xa -o pid,command | egrep 'nginx[:].*worker process' | awk '{print $1}'`"
 
     echo " ---> ls -lad /proc:"
     ls -lad /proc
@@ -301,12 +368,15 @@ if mount | egrep 'proc|sysfs' > /dev/null 2>&1; then
 	    ls -la /proc/${i}/io
 	    ls -la /proc/${i}/limits
 	done
+
+	echo ""
+	echo " ---> cat /proc/${i}/io"
+	cat /proc/${i}/io
     else
 	echo " ---> can't find any nginx workers."
     fi
 else
     echo " ---> can find procfs or sysfs mounts"
-    mount | egrep 'proc|sysfs'
 fi
 
 echo ""
@@ -317,9 +387,27 @@ if [ -f /etc/resolv.conf ]; then
     echo ""
 fi
 
-if [ "${os}" = "centos" -a -f /etc/selinux/config ]; then
+if [ "${os}" = "ubuntu" -o "${os}" = "debian" -a -x /etc/init.d/apparmor ]; then
+    echo "===> /etc/init.d/apparmor status:"
+    /etc/init.d/apparmor status
+    echo ""
+fi
+
+if [ "${os}" = "centos" -o "${os}" = "amzn" -a -f /etc/selinux/config ]; then
     echo "===> /etc/selinux/config is:"
     cat /etc/selinux/config
+    echo ""
+fi
+
+if [ -f /etc/grsec/policy ]; then
+    echo "===> found /etc/grsec/policy!"
+    echo ""
+
+    if command -V gradm > /dev/null 2>&1; then
+	echo " ---> gradm --status"
+	gradm --status
+	echo ""
+    fi
 fi
 
 echo "===> environment variables:"
@@ -329,8 +417,13 @@ egrep 'PATH|SHELL|TERM|USER|HOSTNAME|HOSTTYPE|LOGNAME|MACHTYPE|OSTYPE|SUDO_USER|
 echo ""
 
 if [ -f "${agent_log_file}" ]; then
-    echo "===> tail -20 /var/log/amplify-agent/agent.log"
-    tail -20 /var/log/amplify-agent/agent.log
+    echo "===> checking ${agent_log_file}:"
+    echo ""
+    echo " ---> tail -20 ${agent_log_file}"
+    tail -20 ${agent_log_file}
+    echo ""
+    echo " ---> egrep -i 'failed' ${agent_log_file}"
+    egrep -i 'failed' ${agent_log_file}
 else
     echo "===> can't find ${agent_log_file}"
 fi
@@ -338,8 +431,15 @@ fi
 echo ""
 
 echo "===> testing connectivity to Amplify:"
-curl -I ${api_url}
+if command -V curl > /dev/null 2>&1; then
+    curl -s -I ${api_url}
+else
+    if command -V wget > /dev/null 2>&1; then
+	wget -S --max-redirect 0 ${api_url}
+    fi
+fi
 
 echo ""
+echo "finished." >&2
 
 exit 0
