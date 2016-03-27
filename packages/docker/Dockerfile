@@ -27,6 +27,7 @@ ENV API_KEY 1234567890
 
 # Copy nginx stub_status config
 COPY ./conf.d/stub_status.conf /etc/nginx/conf.d
+RUN chown nginx /etc/nginx/conf.d/stub_status.conf
 
 # The /opt/bin/launch.sh script will launch nginx and the Amplify Agent.
 # The script honors API_KEY and AMPLIFY_HOSTNAME environment
@@ -34,6 +35,7 @@ COPY ./conf.d/stub_status.conf /etc/nginx/conf.d
 
 RUN mkdir -p /opt/bin
 COPY ./launch.sh /opt/bin/launch.sh
+RUN chmod a+rx /opt/bin/launch.sh
 
 # Install the Amplify Agent
 
