@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y \
     apt-transport-https \
     apt-utils \
     python \
-    lsb-release
+    lsb-release && \
+    rm -rf /var/lib/apt/lists/*
 
 # API_KEY is required for amplify-install.sh to generate the initial
 # configuration file for the Amplify Agent.
@@ -39,10 +40,10 @@ RUN chmod a+rx /opt/bin/launch.sh
 
 # Install the Amplify Agent
 
-RUN mkdir -p /root && \
-    cd /root && \
-    curl -L -o amplify-install.sh https://github.com/nginxinc/nginx-amplify-agent/raw/master/packages/install.sh && \
-    sh /root/amplify-install.sh
+RUN curl -L -o amplify-install.sh \
+	       https://github.com/nginxinc/nginx-amplify-agent/raw/master/packages/install.sh && \
+    sh ./amplify-install.sh && \
+    rm -f ./amplify-install.sh
 
 # launch.sh will start nginx and Amplify Agent
 #
