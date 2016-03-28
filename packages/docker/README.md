@@ -34,9 +34,11 @@ You can learn more about the agent's configuration options [here](https://github
 
 When reporting a new object for monitoring, the agent honors the `hostname` configuration option in **/etc/amplify-agent/agent.conf** (see the Amplify [docs](https://github.com/nginxinc/nginx-amplify-doc/blob/master/amplify-guide.md#changing-the-hostname-and-uuid) for additional information).
 
-Normally, the `hostname` is derived automatically through the standard means of obtaining the name of the OS object being monitored. It is possible to explicitly specify the same `hostname` for multiple instances. In this scenario, the metrics received from several agents will be aggregated internally on the backend side—with a single OS object created for monitoring. This way a combined view of various statistics can be obtained (e.g. for a "microservice").
+Normally, the `hostname` is derived automatically through the standard means of obtaining the name of the OS object being monitored. It is possible to explicitly specify the same `hostname` for multiple instances. In this scenario, the metrics received from several agents will be aggregated internally on the backend side—with a single OS object created for monitoring. This way a combined view of various statistics can be obtained (e.g. for a "microservice"). For example, this combined view can display the total number of requests per second through all backend instances of a microservice.
 
-To set a common `hostname` for all containers started from the Amplify-enabled image, you may either configure it explicitly in the Dockerfile—or use the `-e` option with `docker run`:
+Containers with a common `hostname` do not have to share the same local Docker image or NGINX configuration. Containers can be located on different physical hosts too.
+
+To set a common `hostname` for several containers started from the Amplify-enabled image, you may either configure it explicitly in the Dockerfile—or use the `-e` option with `docker run`:
 
 ```
       $ docker run --name mynginx1 -e API_KEY=ecfdee2e010899135c258d741a6effc7 AMPLIFY_HOSTNAME=my-service-A -d nginx-amplify
@@ -55,6 +57,8 @@ We'll be working on improving the support for Docker in the nearest future. Stay
 ## 2. How to Build and Run an Amplify-enabled NGINX image?
 
 ### 2.1. Building an Amplify-enabled image with NGINX
+
+(**Note**: If you are really new to Docker, [here's](https://docs.docker.com/engine/installation/) how to install Docker Engine on various OS.)
 
 Let's pick our official [NGINX Docker image](https://hub.docker.com/_/nginx/) as a good example. The Dockerfile that we're going to use for an Amplify-enabled image is [here](https://github.com/nginxinc/nginx-amplify-agent/blob/master/packages/docker/Dockerfile).
 
