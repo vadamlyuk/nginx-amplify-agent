@@ -80,13 +80,22 @@ if [ -n "${nginx_master}" ]; then
 	echo " ---> ${i}"
 	echo ""
 	nginx_bin=`echo ${i} | sed 's/.*master process \([^ ][^ ]*\).*$/\1/'`
+	nginx_pid=`echo ${i} | awk '{print $2}'`
+	nginx_ppid=`ps o ppid ${nginx_pid} | sed 's/ //g' | tail -1`
 	nginx_conf_option=`echo ${i} | grep '\-c' | sed 's/.*-c \([^ ][^ ]*\).*$/\1/'`
 
 	if [ -n "${nginx_bin}" ]; then
-	    echo "  ---> started from binary: ${nginx_bin}"
+	    echo "  ---> started from binary: ${nginx_bin}, pid ${nginx_pid}, ppid ${nginx_ppid}"
 	    test -f "${nginx_bin}" && \
 	    ls -la ${nginx_bin}
 	    echo ""
+
+	    if [ "${nginx_ppid}" -ne 1 ]; then
+	        echo "  ---> nginx master process ppid ${nginx_ppid} != 1 (a Docker container?)"
+	        echo "   ---> ps o pid,ppid,user,command ${nginx_ppid}:"
+	        ps o pid,ppid,user,command ${nginx_ppid} 2>&1
+	        echo ""
+	    fi
 
 	    if [ -n "${nginx_conf_option}" ]; then
 		echo "  ---> started with config file: ${nginx_conf_option}"
