@@ -39,7 +39,7 @@ EOM
 agent_conf_path="/etc/amplify-agent"
 agent_conf_file="${agent_conf_path}/agent.conf"
 agent_log_file="/var/log/amplify-agent/agent.log"
-api_url="https://receiver.amplify.nginx.com:443/1.1"
+api_url="https://receiver.amplify.nginx.com:443/1.1/"
 
 found_nginx_master=""
 found_nginx_user=""
@@ -83,33 +83,32 @@ if [ -n "${nginx_master}" ]; then
 	nginx_conf_option=`echo ${i} | grep '\-c' | sed 's/.*-c \([^ ][^ ]*\).*$/\1/'`
 
 	if [ -n "${nginx_bin}" ]; then
-	    echo " ---> started from binary: ${nginx_bin}"
+	    echo "  ---> started from binary: ${nginx_bin}"
 	    test -f "${nginx_bin}" && \
 	    ls -la ${nginx_bin}
 	    echo ""
 
 	    if [ -n "${nginx_conf_option}" ]; then
-		echo " ---> started with config file: ${nginx_conf_option}"
+		echo "  ---> started with config file: ${nginx_conf_option}"
 		echo ""
 		ls -la ${nginx_conf_option}
 	    fi
 
 	    test -f "${nginx_bin}" && \
-	    echo " ---> version and configure options:" && \
-	    ${nginx_bin} -V 2>&1
+	    echo "  ---> version and configure options:" && \
+	    ${nginx_bin} -V 2>&1 && \
 	    echo ""
 	fi
 
-	echo " ---> ps xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'"
+	echo "  ---> ps xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'"
 	ps xa -o user,pid,ppid,command | egrep 'nginx[:]|[^/]amplify[-]agent'
+	echo ""
     done
 
     IFS=$IFS_OLD
 else
     echo "===> no nginx master process(es) found!"
 fi
-
-echo ""
 
 if id nginx > /dev/null 2>&1; then
     echo "===> found nginx user:"
@@ -131,8 +130,8 @@ if [ -e /etc/nginx ]; then
 fi
 
 if [ -e /var/log/nginx ]; then
-    echo "===> contents of /var/log/nginx:"
-    ls -la /var/log/nginx
+    echo "===> uncompressed log files in /var/log/nginx:"
+    ls -la /var/log/nginx | grep -i 'log$'
     echo ""
 fi
 
@@ -187,6 +186,7 @@ if [ "${found_agent_conf}" = "yes" ]; then
 	if [ $? = 0 ]; then
 	    echo " ---> agent will use the following real user ID for EUID: ${amplify_user}"
 	else
+	    amplify_user="nginx"
 	    echo " ---> using default real user ID for the agent's EUID"
 	fi
     fi
@@ -345,12 +345,15 @@ if [ -n "${pkg_cmd1}" -a -n "${pkg_cmd2}" ]; then
     echo " ---> ${pkg_cmd2} nginx-amplify-agent | grep 'agent\(.py\)*$'"
     ${pkg_cmd2} nginx-amplify-agent 2>&1 | grep 'agent\(.py\)*$' 2>&1
     echo ""
-    echo " ---> ${pkg_cmd1} nginx"
-    ${pkg_cmd1} nginx 2>&1
-    echo ""
-    echo " ---> ${pkg_cmd2} nginx | | grep 'nginx$'"
-    ${pkg_cmd2} nginx 2>&1 | grep 'nginx$' 2>&1
-    echo ""
+
+    for pkg in nginx nginx-core; do
+	echo " ---> ${pkg_cmd1} ${pkg}" && \
+	${pkg_cmd1} ${pkg} 2>&1 && \
+	echo "" && \
+	echo " ---> ${pkg_cmd2} ${pkg} | grep 'nginx$'" && \
+	${pkg_cmd2} ${pkg} 2>&1 | grep 'nginx$' 2>&1
+	echo ""
+    done
 fi
 
 if cat /proc/1/cgroup | grep -v '.*/$' > /dev/null 2>&1; then
@@ -371,16 +374,23 @@ if mount | egrep 'proc|sysfs' > /dev/null 2>&1; then
     ls -lad /proc
     echo ""
 
-    if [ -n "${nginx_workers}" ]; then
+    if [ -n "${nginx_workers}" ]
+    then
 	echo ' ---> /proc/${pid}/io and /proc/${pid}/limits:'
+	
 	for i in ${nginx_workers}; do
 	    ls -la /proc/${i}/io
 	    ls -la /proc/${i}/limits
+	    worker_user=`ps -o user ${i} | tail -1`
+	    test "${worker_user}" = "${amplify_user}" && \
+		test_worker_pid=$i
 	done
 
-	echo ""
-	echo " ---> cat /proc/${i}/io"
-	cat /proc/${i}/io
+	if [ -n "${amplify_user}" ]; then
+	    echo ""
+	    echo " ---> sudo -u ${amplify_user} /bin/sh -c 'cat /proc/${test_worker_pid}/io'"
+	    sudo -u ${amplify_user} /bin/sh -c "cat /proc/${test_worker_pid}/io" 2>&1
+	fi
     else
 	echo " ---> can't find any nginx workers."
     fi
@@ -414,7 +424,7 @@ if [ -f /etc/grsec/policy ]; then
 
     if command -V gradm > /dev/null 2>&1; then
 	echo " ---> gradm --status"
-	gradm --status
+	gradm --status 2>&1
 	echo ""
     fi
 fi
