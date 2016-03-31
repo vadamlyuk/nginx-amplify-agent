@@ -10,6 +10,7 @@ package_name="nginx-amplify-agent"
 public_key_url="http://nginx.org/keys/nginx_signing.key"
 agent_conf_path="/etc/amplify-agent"
 agent_conf_file="${agent_conf_path}/agent.conf"
+amplify_hostname=""
 
 #
 # Functions
@@ -73,7 +74,7 @@ get_os_name () {
 		release=`cat /etc/*-release | grep -i 'centos.*[0-9]' | \
 			 sed 's/^[^0-9]*\([0-9][0-9]*\).*$/\1/' | head -1`
 		;;
-	    rhel)
+	    rhel|ol)
 		codename=`cat /etc/*-release | grep -i 'red hat.*(' | \
 			  sed 's/.*(\(.*\)).*/\1/' | head -1 | \
 			  tr '[:upper:]' '[:lower:]'`
@@ -205,7 +206,7 @@ add_repo_rpm () {
 install_deb_or_rpm() {
     # Update repo
     printf "\033[32m ${step}. Updating repository ...\n\n\033[0m"
-
+    
     test -n "$update_cmd" && \
     ${sudo_cmd} ${update_cmd}
 
@@ -320,7 +321,7 @@ get_os_name
 # Add public key, create repo config, install package
 case "$os" in
     ubuntu|debian)
-	printf "\033[32m ${os} detected.\033[0m\n"
+	printf "\033[32m ${os} detected.\033[0m\n"		
 
 	step=`expr $step + 1`
 
@@ -347,7 +348,7 @@ case "$os" in
 
 	# Add public key
 	add_public_key_rpm
-
+		
 	step=`expr $step + 1`
 
 	# Add repository configuration
@@ -387,8 +388,13 @@ if [ -f "${agent_conf_file}" ]; then
     ${sudo_cmd} cp -p ${agent_conf_file} ${agent_conf_file}.old
 fi
 
+if [ -n "${AMPLIFY_HOSTNAME}" ]; then
+    amplify_hostname="${AMPLIFY_HOSTNAME}"
+fi
+
 ${sudo_cmd} rm -f ${agent_conf_file} && \
-${sudo_cmd} sh -c "sed 's/api_key.*$/api_key = $api_key/' \
+${sudo_cmd} sh -c "sed -e 's/api_key.*$/api_key = $api_key/' \
+		       -e 's/hostname.*$/hostname = $amplify_hostname/' \
 	${agent_conf_file}.default > \
 	${agent_conf_file}" && \
 ${sudo_cmd} chmod 644 ${agent_conf_file} && \
@@ -400,6 +406,8 @@ else
     printf "\033[31m failed.\033[0m\n\n"
     exit 1
 fi
+
+step=`expr $step + 1`
 
 # Check if init.d script exists
 if [ ! -x /etc/init.d/amplify-agent ]; then

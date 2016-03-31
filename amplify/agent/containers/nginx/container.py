@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-import re
 import hashlib
+import re
+
 import psutil
 
-from amplify.agent.util import subp
-from amplify.agent.context import context
 from amplify.agent.containers.abstract import AbstractContainer, definition_id
 from amplify.agent.containers.nginx.object import NginxObject
-from amplify.agent.containers.nginx.binary import get_prefix_and_conf_path
+from amplify.agent.context import context
 from amplify.agent.eventd import INFO
+from amplify.agent.nginx.binary import get_prefix_and_conf_path
+from amplify.agent.util import subp
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -38,7 +39,7 @@ class NginxContainer(AbstractContainer):
 
                 if object_id not in self.objects:
                     # new object - push it
-                    data.update(self.object_configs.get(object_id, {}))  # push cloud vars
+                    data.update(self.object_configs.get(object_id, {}))  # push cloud config
                     new_obj = NginxObject(definition=definition, data=data)
 
                     # Send discover event.
@@ -54,7 +55,7 @@ class NginxContainer(AbstractContainer):
                     if current_obj.need_restart:
                         # restart object if needed
                         context.log.debug('config was changed (pid %s)' % current_obj.pid)
-                        data.update(self.object_configs.get(object_id, {}))  # push cloud vars
+                        data.update(self.object_configs.get(object_id, {}))  # push cloud config
                         new_obj = NginxObject(definition=definition, data=data)
 
                         # Send nginx config changed event.
@@ -72,7 +73,7 @@ class NginxContainer(AbstractContainer):
                                 current_obj.pid, data['pid']
                             )
                         )
-                        data.update(self.object_configs.get(object_id, {}))  # push cloud vars
+                        data.update(self.object_configs.get(object_id, {}))  # push cloud config
                         new_obj = NginxObject(definition=definition, data=data)
 
                         # Send nginx master process restart/reload event.
@@ -118,14 +119,17 @@ class NginxContainer(AbstractContainer):
         ps_cmd = 'ps -xa -o pid,ppid,command | egrep "PID|nginx" | grep -v egrep'
         try:
             ps, _ = subp.call(ps_cmd)
+            context.log.debug('ps nginx output: %s' % ps)
         except:
-            context.log.warn(ps_cmd, exc_info=True)
+            context.log.error('failed to find running nginx via %s' % ps_cmd)
+            context.log.debug('additional info:', exc_info=True)
             return []
 
         # calculate total amount of nginx master processes
         # if no masters - return
         masters_amount = len(filter(lambda x: 'nginx: master process' in x, ps))
         if masters_amount == 0:
+            context.log.debug('nginx masters amount is zero')
             return []
 
         # collect all info about processes
@@ -176,18 +180,20 @@ class NginxContainer(AbstractContainer):
                                 workers=[]
                             )
                 # match worker
-                elif 'nginx: worker process' in cmd:
+                elif 'nginx: worker process' or 'nginx: cache manager process' in cmd:
                     if ppid in masters:
                         masters[ppid]['workers'].append(pid)
                     else:
                         masters[ppid] = dict(workers=[pid])
-        except:
-            context.log.warn('failed to parse ps results', exc_info=True)
+        except Exception as e:
+            exception_name = e.__class__.__name__
+            context.log.error('failed to parse ps results due to %s' % exception_name)
+            context.log.debug('additional info:', exc_info=True)
 
         # collect results
         results = []
         for pid, description in masters.iteritems():
-            if 'bin_path' in description:  # filter workers from nginx with non-executable nginx -V (relative paths, etc)
+            if 'bin_path' in description:  # filter workers with non-executable nginx -V (relative paths, etc)
                 definition = {'local_id': description['local_id'], 'type': NginxContainer.type}
                 results.append((definition, description))
         return results

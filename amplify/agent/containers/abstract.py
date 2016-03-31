@@ -7,8 +7,6 @@ from collections import defaultdict
 from threading import current_thread
 from gevent import queue
 
-from amplify.agent.util import memusage
-from amplify.agent import Singleton
 from amplify.agent.context import context
 from amplify.agent.statsd import StatsdClient
 from amplify.agent.eventd import EventdClient
@@ -35,12 +33,12 @@ def definition_id(definition):
     return result
 
 
-class AbstractContainer(Singleton):
+class AbstractContainer(object):
     type = None
 
-    def __init__(self):
+    def __init__(self, object_configs=None):
         self.objects = {}
-        self.object_configs = {}
+        self.object_configs = object_configs if object_configs else {}
         self.intervals = context.app_config['containers'][self.type]['poll_intervals']
         self.last_discover = 0
 
@@ -101,10 +99,11 @@ class AbstractObject(object):
 
         self.threads = []
         self.collectors = []
+        self.filters = []
         self.queue = queue.Queue()
 
         # data clients
-        self.statsd = StatsdClient(prefix=self.type, object=self, interval=max(self.intervals.values()))
+        self.statsd = StatsdClient(object=self, interval=max(self.intervals.values()))
         self.eventd = EventdClient(object=self)
         self.metad = MetadClient(object=self)
         self.configd = ConfigdClient(object=self)
@@ -174,23 +173,14 @@ class AbstractCollector(object):
             raise
 
     def _collect(self):
-        m_size_b, m_rss_b = memusage.report()
         start_time = time.time()
         try:
             self.collect()
         except:
             raise
         finally:
-            m_size_a, m_rss_a = memusage.report()
             end_time = time.time()
             context.log.debug('%s collect in %.3f' % (self.object.id, end_time - start_time))
-            context.log.debug('%s mem before: (%s %s), after (%s, %s)' % (
-                self.object.id, m_size_b, m_rss_b, m_size_a, m_rss_a)
-            )
-            if m_rss_a > m_rss_b:
-                context.log.debug('%s RSS MEMORY INCREASE! diff %s' % (self.object.id, m_rss_a - m_rss_b))
-            elif m_size_a > m_size_b:
-                context.log.debug('%s VSIZE MEMORY INCREASE! diff %s' % (self.object.id, m_size_a - m_size_b))
 
     def _sleep(self):
         time.sleep(self.interval)

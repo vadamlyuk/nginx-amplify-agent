@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-from amplify.agent.containers.nginx.log.error import NginxErrorLogParser
-from amplify.agent.util.tail import FileTail
-from amplify.agent.context import context
 from amplify.agent.containers.abstract import AbstractCollector
-from amplify.agent.containers.nginx.config.config import ERROR_LOG_LEVELS
-
+from amplify.agent.context import context
+from amplify.agent.nginx.config.config import ERROR_LOG_LEVELS
+from amplify.agent.nginx.log.error import NginxErrorLogParser
+from amplify.agent.util.tail import FileTail
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -19,10 +18,10 @@ class NginxErrorLogsCollector(AbstractCollector):
     short_name = 'nginx_elog'
 
     counters = (
-        'http.request.buffered',
-        'upstream.response.buffered',
-        'upstream.request.failed',
-        'upstream.response.failed',
+        'nginx.http.request.buffered',
+        'nginx.upstream.response.buffered',
+        'nginx.upstream.request.failed',
+        'nginx.upstream.response.failed',
     )
 
     def __init__(self, filename=None, level=None, log_format=None, tail=None, **kwargs):

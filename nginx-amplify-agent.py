@@ -24,8 +24,7 @@ __email__ = "dedm@nginx.com"
 
 
 def test_config(config, pid):
-    rc = configreader.test(config, pid)
-    return rc
+    return configreader.test(config, pid)
 
 
 usage = "usage: %prog [start|stop|configtest] [options]"
@@ -76,34 +75,34 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
 
-    if action == 'configtest':
+    # check config before start
+    if action in ('configtest', 'start'):
         rc = test_config(options.config, options.pid)
         print("")
-        sys.exit(rc)
-    else:
-        try:
-            if options.config:
-                test_config(options.config, options.pid)  # Check config before trying to start.
-            from amplify.agent.context import context
-            context.setup(
-                app='agent',
-                config_file=options.config,
-                pid_file=options.pid
-            )
-        except:
-            import traceback
-            print(traceback.format_exc(sys.exc_traceback))
+        if action == 'configtest' or rc:
+            sys.exit(rc)
 
-        try:
-            from amplify.agent.supervisor import Supervisor
-            supervisor = Supervisor(foreground=options.foreground)
+    try:
+        from amplify.agent.context import context
+        context.setup(
+            app='agent',
+            config_file=options.config,
+            pid_file=options.pid
+        )
+    except:
+        import traceback
+        print(traceback.format_exc(sys.exc_traceback))
 
-            if not options.foreground:
-                from amplify.agent.runner import Runner
-                daemon_runner = Runner(supervisor)
-                daemon_runner.do_action()
-            else:
-                supervisor.run()
-        except:
-            context.default_log.error('uncaught exception during run time', exc_info=True)
-            print(traceback.format_exc(sys.exc_traceback))
+    try:
+        from amplify.agent.supervisor import Supervisor
+        supervisor = Supervisor(foreground=options.foreground)
+
+        if not options.foreground:
+            from amplify.agent.runner import Runner
+            daemon_runner = Runner(supervisor)
+            daemon_runner.do_action()
+        else:
+            supervisor.run()
+    except:
+        context.default_log.error('uncaught exception during run time', exc_info=True)
+        print(traceback.format_exc(sys.exc_traceback))

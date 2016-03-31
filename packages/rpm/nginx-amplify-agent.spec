@@ -21,13 +21,6 @@ License: 2-clause BSD-like license
 Source0:   nginx-amplify-agent-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
-BuildRequires:  python-devel
-%if 0%{?fedora} && 0%{?fedora} <= 12
-BuildRequires:  python-setuptools-devel
-%else
-BuildRequires:  python-setuptools
-%endif
-
 Requires: python >= 2.6
 Requires: initscripts >= 8.36
 Requires(post): chkconfig
@@ -102,6 +95,8 @@ if [ $1 -eq 1 ] ; then
     touch /var/log/amplify-agent/agent.log
     chown nginx /var/run/amplify-agent /var/log/amplify-agent/agent.log
 elif [ $1 -eq 2 ] ; then
+    %define agent_conf_file /etc/amplify-agent/agent.conf
+
     # Check for an older version of the agent running
     if command -V pgrep > /dev/null 2>&1; then
         agent_pid=`pgrep amplify-agent`
@@ -114,9 +109,16 @@ elif [ $1 -eq 2 ] ; then
         service amplify-agent stop > /dev/null 2>&1 < /dev/null
     fi
 
-    # Change API URL from 1.0 to 1.1
-    sh -c "sed -i.old 's/api_url.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.1/' \
-        /etc/amplify-agent/agent.conf"
+    # Change API URL to 1.1
+    if [ -f "%{agent_conf_file}" ]; then
+	    sh -c "sed -i.old 's/api_url.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.1/' \
+	    %{agent_conf_file}"
+    else
+        test -f "%{agent_conf_file}.default" && \
+        cp -p "%{agent_conf_file}.default" "%{agent_conf_file}" && \
+        chmod 644 %{agent_conf_file} && \
+	    chown nginx %{agent_conf_file} > /dev/null 2>&1
+    fi
 
     # start it
     service amplify-agent start > /dev/null 2>&1 < /dev/null
@@ -136,6 +138,10 @@ fi
 
 
 %changelog
+* Thu Mar 31 2016 Mike Belov <dedm@nginx.com> 0.31-1
+- 0.31-1
+- Bug fixes
+
 * Tue Mar 15 2016 Mike Belov <dedm@nginx.com> 0.30-1
 - 0.30-1
 - Bug fixes

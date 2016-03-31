@@ -1,8 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import os
+
 from optparse import OptionParser, Option
 
-from builders.util import shell_call
+from builders.util import shell_call, color_print
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -34,4 +36,11 @@ if __name__ == '__main__':
 
     shell_call('find . -name "*.pyc" -type f -delete', terminal=True)
     shell_call('docker build -t %s %s' % (image, path), terminal=True)
+
+    rows, columns = os.popen('stty size', 'r').read().split()
+    color_print("\n= RUN TESTS =" + "="*(int(columns)-13))
+    color_print("py.test test/", color="yellow")
+    color_print("="*int(columns)+"\n")
     shell_call('docker-compose -f %s run test bash' % yml, terminal=True)
+
+

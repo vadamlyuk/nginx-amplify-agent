@@ -31,9 +31,11 @@ sys.setrecursionlimit(2048)
 
 class Context(Singleton):
     def __init__(self):
-        self.pid = os.getpid()
+        self.set_pid()
 
-        self.version = '0.30-1'  # Major.Minor-Build
+        self.version_major = 0.31
+        self.version_build = 1
+        self.version = '%s-%s' % (self.version_major, self.version_build)
         self.environment = None
         self.http_client = None
         self.default_log = None
@@ -52,6 +54,9 @@ class Context(Singleton):
 
         self.setup_thread_id()
         self.setup_environment()
+
+    def set_pid(self):
+        self.pid = os.getpid()
 
     def setup_environment(self):
         """

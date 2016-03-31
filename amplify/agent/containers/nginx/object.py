@@ -1,16 +1,18 @@
 # -*- coding: utf-8 -*-
-from amplify.agent.util import host
-from amplify.agent.context import context
-from amplify.agent.containers.abstract import AbstractObject
 from amplify.agent.containers.nginx.collectors.accesslog import NginxAccessLogsCollector
+from amplify.agent.containers.nginx.collectors.config import NginxConfigCollector
 from amplify.agent.containers.nginx.collectors.errorlog import NginxErrorLogsCollector
+from amplify.agent.containers.nginx.collectors.meta.centos import NginxCentosMetaCollector
 from amplify.agent.containers.nginx.collectors.meta.common import NginxCommonMetaCollector
 from amplify.agent.containers.nginx.collectors.meta.deb import NginxDebianMetaCollector
-from amplify.agent.containers.nginx.collectors.meta.centos import NginxCentosMetaCollector
 from amplify.agent.containers.nginx.collectors.metrics import NginxMetricsCollector
-from amplify.agent.containers.nginx.config.config import NginxConfig
-from amplify.agent.containers.nginx.collectors.config import NginxConfigCollector
+from amplify.agent.containers.abstract import AbstractObject
+from amplify.agent.nginx.config.config import NginxConfig
+from amplify.agent.context import context
 from amplify.agent.eventd import INFO
+from amplify.agent.util import host
+from amplify.agent.util import http
+
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -39,6 +41,7 @@ class NginxObject(AbstractObject):
         self.upload_config = self.data.get('upload_config') or default_config.get('upload_config', False)
         self.run_config_test = self.data.get('run_test') or default_config.get('run_test', False)
         self.upload_ssl = self.data.get('upload_ssl') or default_config.get('upload_ssl', False)
+        self.filters = self.data.get('filters') or []
 
         self.config = NginxConfig(self.conf_path, prefix=self.prefix)
         self.config.full_parse()
@@ -79,7 +82,7 @@ class NginxObject(AbstractObject):
                         object=self,
                         interval=self.intervals['logs'],
                         filename=log_filename,
-                        log_format=log_format
+                        log_format=log_format,
                     )
                 )
 
@@ -121,7 +124,13 @@ class NginxObject(AbstractObject):
         Records some events about it
         :return:
         """
-        stub_status_url = self.__get_alive_status(self.config.stub_status_urls)
+        urls_to_check = self.config.stub_status_urls
+
+        if 'stub_status' in context.app_config.get('nginx', {}):
+            predefined_uri = context.app_config['nginx']['stub_status']
+            urls_to_check.append(http.resolve_uri(predefined_uri))
+
+        stub_status_url = self.__get_alive_status(urls_to_check)
         if stub_status_url:
             # Send stub detected event
             self.eventd.event(
@@ -149,14 +158,21 @@ class NginxObject(AbstractObject):
 
         :return: (str or None, str or None)
         """
-        internal_status_url = self.__get_alive_status(self.config.plus_status_internal_urls, json=True)
+        internal_urls = self.config.plus_status_internal_urls
+        external_urls = self.config.plus_status_external_urls
+
+        if 'plus_status' in context.app_config.get('nginx', {}):
+            predefined_uri = context.app_config['nginx']['plus_status']
+            internal_urls.append(http.resolve_uri(predefined_uri))
+
+        internal_status_url = self.__get_alive_status(internal_urls, json=True)
         if internal_status_url:
             self.eventd.event(
                 level=INFO,
                 message='nginx internal plus_status detected, %s' % internal_status_url
             )
 
-        external_status_url = self.__get_alive_status(self.config.plus_status_external_urls, json=True)
+        external_status_url = self.__get_alive_status(external_urls, json=True)
         if len(self.config.plus_status_external_urls) > 0:
             if not external_status_url:
                 external_status_url = 'http://%s' % self.config.plus_status_external_urls[0]
@@ -172,19 +188,21 @@ class NginxObject(AbstractObject):
         """
         Tries to find alive status url
         Returns first alive url or None if all founded urls are not responding
+
+        :param url_list: [] of urls
+        :param json: bool - will try to encode json if True
         :return: None or str
         """
         for url in url_list:
             for proto in ('http://', 'https://'):
-                full_url = '%s%s' % (proto, url)
+                full_url = '%s%s' % (proto, url) if not url.startswith('http') else url
                 try:
-                    status_response = context.http_client.get(full_url, timeout=0.5, json=json)
+                    status_response = context.http_client.get(full_url, timeout=0.5, json=json, log=False)
                     if status_response:
                         if json or 'Active connections' in status_response:
                             return full_url
                     else:
-                        context.log.error('no response from stub/plus status url %s' % full_url)
+                        context.log.debug('bad response from stub/plus status url %s' % full_url)
                 except:
-                    context.log.error('failed to check stub/plus status url %s' % full_url)
-                    context.log.debug('additional info', exc_info=True)
+                    context.log.debug('bad response from stub/plus status url %s' % full_url)
         return None

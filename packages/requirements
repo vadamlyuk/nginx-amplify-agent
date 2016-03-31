@@ -9,3 +9,4 @@ ujson==1.33
 python-daemon==2.0.6
 pyparsing==2.0.1
 setproctitle==1.1.9
+rstr==2.2.3

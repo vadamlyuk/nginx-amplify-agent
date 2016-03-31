@@ -1,8 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import os
+
 from optparse import OptionParser, Option
 
-from builders.util import shell_call
+from builders.util import shell_call, color_print
+
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -40,6 +43,13 @@ option_list = (
         action='store_true',
         dest='background',
         help='Run in background (False by default)',
+        default=False,
+    ),
+    Option(
+        '--shell',
+        action='store_true',
+        dest='shell',
+        help='Get shell access',
         default=False,
     ),
     Option(
@@ -83,9 +93,22 @@ if __name__ == '__main__':
         if options.rebuild:
             rm_and_build('%s' % options.os, 'amplify-agent-%s' % options.os)
 
-        runcmd = 'docker-compose -f docker/%s.yml up' % options.os
+        if options.shell:
+            rows, columns = os.popen('stty size', 'r').read().split()
+            color_print("\n= USEFUL COMMANDS =" + "="*(int(columns)-20))
+            for helper in (
+                "nginx",
+                "python /amplify/nginx-amplify-agent.py start --config=/amplify/etc/agent.conf.development",
+                "python /amplify/nginx-amplify-agent.py stop --config=/amplify/etc/agent.conf.development"
+            ):
+                color_print(helper, color='yellow')
+            color_print("="*int(columns)+"\n")
 
-    if options.background:
+            runcmd = 'docker-compose -f docker/%s.yml run agent bash' % options.os
+        else:
+            runcmd = 'docker-compose -f docker/%s.yml up' % options.os
+
+    if options.background and not options.shell:
         runcmd += ' -d'
 
     shell_call(runcmd, terminal=True)

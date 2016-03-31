@@ -50,7 +50,7 @@ class NginxConfigParser(object):
     Parses single file into json structure
     """
 
-    max_size = 10*1024*1024  # 10 mb
+    max_size = 20*1024*1024  # 20 mb
 
     # line starts/ends
     line_start = LineStart().suppress()
@@ -77,12 +77,15 @@ class NginxConfigParser(object):
     error_page_key = Keyword("error_page").setParseAction(set_line_number)
     map_key = Keyword("map").setParseAction(set_line_number)
     server_name_key = Keyword("server_name").setParseAction(set_line_number)
+    sub_filter_key = Keyword("sub_filter").setParseAction(set_line_number)
+
     # lua keys
     start_with_lua_key = Regex(r'lua_\S+').setParseAction(set_line_number)
     contains_by_lua_key = Regex(r'\S+_by_lua\S*').setParseAction(set_line_number)
+
     key = (
         ~map_key & ~alias_key & ~perl_set_key &
-        ~if_key & ~set_key & ~rewrite_key & ~server_name_key
+        ~if_key & ~set_key & ~rewrite_key & ~server_name_key & ~sub_filter_key
     ) + Word(alphanums + '$_:%?"~<>\/-+.,*()[]"' + "'").setParseAction(set_line_number)
 
     # values
@@ -90,10 +93,16 @@ class NginxConfigParser(object):
     quotedValue = Regex(r'"[^;]+"|\'[^;]+\'').setParseAction(set_line_number)
     rewrite_value = CharsNotIn(";").setParseAction(set_line_number)
     any_value = CharsNotIn(";").setParseAction(set_line_number)
-    map_value = Regex(r'\'[^\']*\'|"[^"*]*"|((\\\s|[^{};\s])*)').setParseAction(set_line_number)
     if_value = Regex(r'\(.*\)').setParseAction(set_line_number)
     language_include_value = CharsNotIn("'").setParseAction(set_line_number)
     strict_value = CharsNotIn("{};").setParseAction(set_line_number)
+    sub_filter_value = Regex(r"\'(.|\n)+?\'",).setParseAction(set_line_number)
+
+    # map values
+    map_value_one = Regex(r'\'([^\']|\s)*\'').setParseAction(set_line_number)
+    map_value_two = Regex(r'"([^"]|\s)*\"').setParseAction(set_line_number)
+    map_value_three = Regex(r'((\\\s|[^{};\s])*)').setParseAction(set_line_number)
+    map_value = (map_value_one | map_value_two | map_value_three)
 
     # modifier for location uri [ = | ~ | ~* | ^~ ]
     modifier = Literal("=") | Literal("~*") | Literal("~") | Literal("^~")
@@ -139,8 +148,11 @@ class NginxConfigParser(object):
         server_name_key + space + any_value + Optional(space) + semicolon
     ).setParseAction(set_line_number)
 
-    # script
+    sub_filter = (
+        sub_filter_key + space + sub_filter_value + space + sub_filter_value + Optional(space) + semicolon
+    ).setParseAction(set_line_number)
 
+    # script
     map_block = Forward()
     map_block << Group(
         Group(
@@ -170,7 +182,7 @@ class NginxConfigParser(object):
             ZeroOrMore(
                  Group(log_format) | Group(lua_content) | Group(perl_set) |
                  Group(set) | Group(rewrite) | Group(alias) | Group(return_) |
-                 Group(assignment) | Group(server_name) |
+                 Group(assignment) | Group(server_name) | Group(sub_filter) |
                  map_block | block
             ).setParseAction(set_line_number)
         ).setParseAction(set_line_number) +
@@ -179,7 +191,7 @@ class NginxConfigParser(object):
 
     script = OneOrMore(
         Group(log_format) | Group(perl_set) | Group(lua_content) | Group(alias) | Group(return_) |
-        Group(assignment) | Group(set) | Group(rewrite) |
+        Group(assignment) | Group(set) | Group(rewrite) | Group(sub_filter) |
         map_block | block
     ).ignore(pythonStyleComment)
 

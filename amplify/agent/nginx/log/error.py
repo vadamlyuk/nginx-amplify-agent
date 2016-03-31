@@ -10,20 +10,20 @@ __email__ = "dedm@nginx.com"
 
 
 error_re = {
-    'http.request.buffered': [
+    'nginx.http.request.buffered': [
         re.compile(r'.*client request body is buffered.*'),
     ],
-    'upstream.response.buffered': [
+    'nginx.upstream.response.buffered': [
         re.compile(r'.*upstream response is buffered.*'),
     ],
-    'upstream.request.failed': [
+    'nginx.upstream.request.failed': [
         re.compile(r'.*failed.*while connecting to upstream, client.*'),
         re.compile(r'.*upstream timed out.*while connecting to upstream, client.*'),
         re.compile(r'.*upstream queue is full while connecting to upstream.*'),
         re.compile(r'.*no live upstreams while connecting to upstream, client.*'),
         re.compile(r'.*upstream connection is closed too while sending request to upstream, client.*'),
     ],
-    'upstream.response.failed': [
+    'nginx.upstream.response.failed': [
         re.compile(r'.*failed.*while reading upstream.*'),
         re.compile(r'.*failed.*while reading response header from upstream, client.*'),
         re.compile(r'.*upstream timed out.*while reading response header from upstream, client.*'),

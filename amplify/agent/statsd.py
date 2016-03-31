@@ -47,34 +47,31 @@ class StatsdContainer(Singleton):
 
 
 class StatsdClient(object):
-    def __init__(self, address=None, port=None, prefix=None, interval=None, object=None):
+    def __init__(self, address=None, port=None, interval=None, object=None):
         # Import context as a class object to avoid circular import on statsd.  This could be refactored later.
         from amplify.agent.context import context
         self.context = context
 
         self.address = address
         self.port = port
-        self.prefix = prefix
         self.object = object
         self.interval = interval
         self.current = defaultdict(dict)
         self.delivery = defaultdict(dict)
 
-    def average(self, name, value):
+    def average(self, metric_name, value):
         """
         Same thing as histogram but without p95
 
-        :param name:  metric name
+        :param metric_name:  metric name
         :param value:  metric value
         """
-        metric_name = '%s.%s' % (self.prefix, name)
-
         if metric_name in self.current['average']:
             self.current['average'][metric_name].append(value)
         else:
             self.current['average'][metric_name] = [value]
 
-    def timer(self, name, value):
+    def timer(self, metric_name, value):
         """
         Histogram with 95 percentile
 
@@ -84,25 +81,23 @@ class StatsdClient(object):
         Sort the data set by value from highest to lowest and discard the highest 5% of the sorted samples.
         The next highest sample is the 95th percentile value for the data set.
 
-        :param name: metric name
+        :param metric_name: metric name
         :param value: metric value
         """
-        metric_name = '%s.%s' % (self.prefix, name)
-
         if metric_name in self.current['timer']:
             self.current['timer'][metric_name].append(value)
         else:
             self.current['timer'][metric_name] = [value]
 
-    def incr(self, name, value=None, rate=None):
+    def incr(self, metric_name, value=None, rate=None):
         """
         Simple counter with rate
-        :param name: metric name
+
+        :param metric_name: metric name
         :param value: metric value
         :param rate: rate
         """
         timestamp = int(time.time())
-        metric_name = '%s.%s' % (self.prefix, name)
 
         if value is None:
             value = 1
@@ -127,25 +122,23 @@ class StatsdClient(object):
         else:
             self.current['counter'][metric_name][-1] = [last_stamp, last_value + value]
 
-    def agent(self, name, value):
+    def agent(self, metric_name, value):
         """
         Agent metrics
-        :param name: metric
+        :param metric_name: metric
         :param value: value
         """
         timestamp = int(time.time())
-        metric_name = 'amplify.agent.%s' % name
         self.current['gauge'][metric_name] = [(timestamp, value)]
 
-    def gauge(self, name, value, delta=False, prefix=False):
+    def gauge(self, metric_name, value, delta=False, prefix=False):
         """
         Gauge
-        :param name: metric name
+        :param metric_name: metric name
         :param value: metric value
         :param delta: metric delta (applicable only if we have previous values)
         """
         timestamp = int(time.time())
-        metric_name = '%s.%s' % (self.prefix, name)
 
         if metric_name in self.current['gauge']:
             if delta:

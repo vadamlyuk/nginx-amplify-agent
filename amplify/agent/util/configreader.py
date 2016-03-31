@@ -23,7 +23,8 @@ def read(config_name, config_file=None):
     Each config is a python file which can
     Typical name of config for example: /agent/config/app.py
 
-    :param config_name: config name
+    :param config_name: str config name
+    :param config_file: str config file name
     :return: python object
     """
     if config_name not in CONFIG_CACHE:
@@ -69,7 +70,7 @@ def test(config_file, pid_file):
 
         # test logger
         try:
-            context.log.debug('configtest check')
+            context.log.info('configtest check')
         except:
             print("\033[31mCould not write to log\033[0m\n")
             print("Maybe the log folder doestn't exist or rights are broken")

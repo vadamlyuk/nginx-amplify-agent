@@ -58,7 +58,7 @@ class HTTPClient(Singleton):
         self.url = None
 
         self.proxies = config.get('proxies')  # Support old configs which don't have 'proxies' section
-        if self.proxies is not None and self.proxies['https'] == '':
+        if self.proxies and self.proxies.get('https', '') == '':
             self.proxies = None  # Pass None to trigger requests default scraping of environment variables
 
         self.update_cloud_url()
@@ -101,16 +101,13 @@ class HTTPClient(Singleton):
                 )
             http_code = r.status_code
             r.raise_for_status()
-            try:
-                result = r.json() if json else r.text
-            except ValueError as e:
-                context.log.error('failed %s "%s", exception: "%s"' % (method.upper(), url, e.message))
-                context.log.debug('', exc_info=True)
+            result = r.json() if json else r.text
             return result
         except Exception as e:
             if log:
                 context.log.error('failed %s "%s", exception: "%s"' % (method.upper(), url, e.message))
                 context.log.debug('', exc_info=True)
+            raise e
         finally:
             end_time = time.time()
             log_method = context.log.info if log else context.log.debug
@@ -124,3 +121,16 @@ class HTTPClient(Singleton):
 
     def get(self, url, timeout=None, json=True, log=True):
         return self.make_request(url, 'get', timeout=timeout, json=json, log=log)
+
+
+def resolve_uri(uri):
+    """
+    Resolves uri if it's not absolute
+
+    :param uri: str uri
+    :return: str url
+    """
+    if not(uri.startswith('http://') or uri.startswith('https://')):
+        return '127.0.0.1%s' % uri
+    else:
+        return uri

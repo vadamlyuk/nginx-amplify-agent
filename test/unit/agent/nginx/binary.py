@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-import os
-
 from hamcrest import *
 
+from amplify.agent.nginx.binary import get_prefix_and_conf_path
 from test.base import BaseTestCase
-from amplify.agent.containers.nginx.binary import get_prefix_and_conf_path
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."

@@ -1,9 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import json
 import os
 import sys
-import json
-
 from optparse import OptionParser, Option
 
 sys.path.append(os.getcwd())  # to make amplify libs available
@@ -14,7 +13,7 @@ context.setup(
     config_file='etc/agent.conf.development',
 )
 
-from amplify.agent.containers.nginx.config.config import NginxConfig
+from amplify.agent.nginx.config.config import NginxConfig
 
 
 __author__ = "Mike Belov"

@@ -3,10 +3,8 @@ import os
 
 from hamcrest import *
 
+from amplify.agent.nginx.config.parser import NginxConfigParser, IGNORED_DIRECTIVES
 from test.base import BaseTestCase
-from amplify.agent.containers.nginx.config.parser import NginxConfigParser, IGNORED_DIRECTIVES
-from amplify.agent.context import context
-
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -29,6 +27,7 @@ windows_config = os.getcwd() + '/test/fixtures/nginx/windows/nginx.conf'
 tab_config = os.getcwd() + '/test/fixtures/nginx/custom/tabs.conf'
 json_config = os.getcwd() + '/test/fixtures/nginx/custom/json.conf'
 ssl_simple_config = os.getcwd() + '/test/fixtures/nginx/ssl/simple/nginx.conf'
+sub_filter_config = os.getcwd() + '/test/fixtures/nginx/custom/sub_filter.conf'
 
 
 class ParserTestCase(BaseTestCase):
@@ -188,6 +187,7 @@ class ParserTestCase(BaseTestCase):
 
         # maps
         assert_that(http['map']['$http_user_agent $device'], has_key('~*Nexus\\ One|Nexus\\ S'))
+        assert_that(http['map']['$http_referer $bad_referer'], has_key('"~* move-"'))
 
     def test_parse_ssl(self):
         """
@@ -286,7 +286,6 @@ class ParserTestCase(BaseTestCase):
 
     def test_parse_ssl_simple_config(self):
         cfg = NginxConfigParser(ssl_simple_config)
-
         cfg.parse()
         tree = cfg.simplify()
 
@@ -304,3 +303,32 @@ class ParserTestCase(BaseTestCase):
 
         ssl_certificates = cfg.ssl_certificates
         assert_that(len(ssl_certificates), equal_to(1))
+
+    def test_lightweight_parse_includes_permissions(self):
+        """
+        Checks that we get file permissions during lightweight parsing
+        """
+        cfg = NginxConfigParser(simple_config)
+        files = cfg.collect_all_files()
+
+        test_file = '/amplify/test/fixtures/nginx/simple/conf.d/something.conf'
+        size = os.path.getsize(test_file)
+        mtime = int(os.path.getmtime(test_file))
+        permissions = oct(os.stat(test_file).st_mode & 0777)
+
+        assert_that(
+            files[test_file],
+            equal_to('%s_%s_%s' % (size, mtime, permissions))
+        )
+
+    def test_sub_filter(self):
+        cfg = NginxConfigParser(sub_filter_config)
+        cfg.parse()
+        tree = cfg.simplify()
+
+        assert_that(
+            tree['http']['sub_filter'],
+            equal_to(
+                '\'</body>\'\'<p style="position: fixed;top:\n            60px;width:100%;;background-color: #f00;background-color:\n            rgba(255,0,0,0.5);color: #000;text-align: center;font-weight:\n            bold;padding: 0.5em;z-index: 1;">Test</p></body>\''
+            )
+        )

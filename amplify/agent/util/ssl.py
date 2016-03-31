@@ -185,3 +185,4 @@ def ssl_analysis(filename):
         context.log.debug('ssl analysis took %.3f seconds for %s' % (end_time-start_time, filename))
 
     return results
+

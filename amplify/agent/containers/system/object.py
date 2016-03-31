@@ -16,7 +16,6 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
-
 class SystemObject(AbstractObject):
     type = 'system'
 
@@ -40,12 +39,18 @@ class SystemObject(AbstractObject):
             # Fire agent started event.
             self.eventd.event(
                 level=INFO,
-                message='agent started, version: %s, pid %s' % (context.version, context.pid),
+                message='agent started, version: %s, pid: %s' % (context.version, context.pid),
                 ctime=context.start_time-1  # Make sure that the start event is the first event reported.
             )
 
-            # Log agent started event.
-            context.log.info('agent started, version: %s, pid %s' % (context.version, context.pid))
+            # log agent started event
+            context.log.info(
+                'agent started, version=%s pid=%s uuid=%s hostname=%s' %
+                (context.version, context.pid, self.uuid, self.hostname)
+            )
+
+            # log main host params
+            context.log.info('')
 
         super(SystemObject, self).start()
 
@@ -54,10 +59,13 @@ class SystemObject(AbstractObject):
             # Fire agent stopped event.
             self.eventd.event(
                 level=INFO,
-                message='agent stopped, version: %s, pid %s' % (context.version, context.pid)
+                message='agent stopped, version: %s, pid: %s' % (context.version, context.pid)
             )
 
-            # Log agent stopped event.
-            context.log.info('agent stopped, version: %s, pid %s' % (context.version, context.pid))
+            # log agent stopped event
+            context.log.info(
+                'agent stopped, version=%s pid=%s uuid=%s hostname=%s' %
+                (context.version, context.pid, self.uuid, self.hostname)
+            )
 
         super(SystemObject, self).stop(*args, **kwargs)

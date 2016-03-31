@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 import copy
 
-from amplify.agent.context import context
-from amplify.agent.containers.nginx.config.config import NginxConfig
 from amplify.agent.containers.abstract import AbstractCollector
+from amplify.agent.context import context
 from amplify.agent.eventd import CRITICAL, WARNING, INFO
+from amplify.agent.nginx.config.config import NginxConfig
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -53,7 +53,7 @@ class NginxConfigCollector(AbstractCollector):
             if self.object.upload_ssl:
                 config.run_ssl_analysis()
             else:
-                context.log.info('ssl analysis skipped due to object settings')
+                context.log.info('ssl analysis skipped due to users settings')
 
             # run upload
             checksum = config.checksum()
@@ -110,6 +110,8 @@ class NginxConfigCollector(AbstractCollector):
             'tree': config.tree,
             'files': config.files,
             'ssl_certificates': config.ssl_certificates,
+            'access_logs': config.access_logs,
+            'error_logs': config.error_logs,
             'errors': {
                 'parser': len(config.parser_errors),
                 'test': len(config.test_errors)

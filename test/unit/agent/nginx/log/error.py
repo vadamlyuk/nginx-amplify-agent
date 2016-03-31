@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from hamcrest import *
 
+from amplify.agent.nginx.log.error import NginxErrorLogParser
 from test.base import BaseTestCase
-from amplify.agent.containers.nginx.log.error import NginxErrorLogParser
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -21,7 +21,7 @@ class LogParserTestCase(BaseTestCase):
 
         parser = NginxErrorLogParser()
         parsed = parser.parse(line)
-        assert_that(parsed, equal_to('upstream.response.failed'))
+        assert_that(parsed, equal_to('nginx.upstream.response.failed'))
 
     def test_upstream_response_buffered(self):
         line = '2015/07/15 05:56:33 [warn] 28386#28386: *94149 an upstream response is buffered ' + \
@@ -34,7 +34,7 @@ class LogParserTestCase(BaseTestCase):
 
         parser = NginxErrorLogParser()
         parsed = parser.parse(line)
-        assert_that(parsed, equal_to('upstream.response.buffered'))
+        assert_that(parsed, equal_to('nginx.upstream.response.buffered'))
 
     def test_none_found(self):
         line = '2015/07/15 05:56:30 [info] 28386#28386: *94160 client 10.196.158.41 closed keepalive connection'

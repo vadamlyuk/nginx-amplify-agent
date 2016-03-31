@@ -1,6 +1,8 @@
 #!/bin/bash
 # postinst script for Nginx Amplify Agent
 
+agent_conf_file="/etc/amplify-agent/agent.conf"
+
 set -e
 
 if [ "$1" != "configure" ]; then
@@ -9,11 +11,11 @@ fi
 
 if [ -z "$2" ]; then
     update-rc.d amplify-agent defaults
-    mkdir -p /var/run/amplify-agent
-    mkdir -p /var/log/amplify-agent
-    touch /var/log/amplify-agent/agent.log
-    chown nginx /var/run/amplify-agent
-    chown nginx /var/log/amplify-agent
+    mkdir -p /var/run/amplify-agent && \
+    mkdir -p /var/log/amplify-agent && \
+    touch /var/log/amplify-agent/agent.log && \
+    chown nginx /var/run/amplify-agent && \
+    chown nginx /var/log/amplify-agent && \
     chown nginx /var/run/amplify-agent /var/log/amplify-agent/agent.log
 else
     # Check for an older version of the agent running
@@ -28,9 +30,16 @@ else
         service amplify-agent stop > /dev/null 2>&1 < /dev/null
     fi
 
-    # Change API URL from 1.0 to 1.1
-    sh -c "sed -i.old 's/api_url.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.1/' \
-        /etc/amplify-agent/agent.conf"
+    # Change API URL to 1.1
+    if [ -f "${agent_conf_file}" ]; then
+	    sh -c "sed -i.old 's/api_url.*$/api_url = https:\/\/receiver.amplify.nginx.com:443\/1.1/' \
+	    ${agent_conf_file}"
+    else
+        test -f "${agent_conf_file}.default" && \
+        cp -p "${agent_conf_file}.default" "${agent_conf_file}" && \
+        chmod 644 ${agent_conf_file} && \
+	    chown nginx ${agent_conf_file} > /dev/null 2>&1
+    fi
 
     # start it
     service amplify-agent start > /dev/null 2>&1 < /dev/null

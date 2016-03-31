@@ -4,7 +4,10 @@ hostname =
 uuid =
 
 [nginx]
-user =
+#user = nginx
+#configfile = /etc/nginx/nginx.conf
+#stub_status = /nginx_status
+#plus_status = /status
 
 [proxies]
 https =

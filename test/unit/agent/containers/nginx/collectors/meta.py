@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from hamcrest import *
 
+from amplify.agent.nginx.binary import _parse_arguments
 from test.base import NginxCollectorTestCase
-from amplify.agent.containers.nginx.binary import _parse_arguments
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."

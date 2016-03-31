@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 import copy
+import hashlib
+import os
 import re
 import time
-import os
-import hashlib
+import rstr
 
-from amplify.agent.containers.nginx.config.parser import NginxConfigParser
-from amplify.agent.util import subp
 from amplify.agent.context import context
+from amplify.agent.nginx.config.parser import NginxConfigParser
+from amplify.agent.util import subp
 from amplify.agent.util.ssl import ssl_analysis
-
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -50,15 +50,15 @@ class NginxConfig(object):
         self.log_formats = {}
         self.access_logs = {}
         self.error_logs = {}
-        self.stub_status_urls = []
-        self.plus_status_external_urls = []
-        self.plus_status_internal_urls = []
         self.test_errors = []
         self.tree = {}
         self.files = {}
         self.index = []
         self.ssl_certificates = {}
         self.parser_errors = []
+        self.stub_status_urls = []
+        self.plus_status_external_urls = []
+        self.plus_status_internal_urls = []
         self.parser = NginxConfigParser(filename)
 
     def full_parse(self):
@@ -207,25 +207,53 @@ class NginxConfig(object):
                     if isinstance(next_subtree, dict):
                         self.__recursive_search(subtree=next_subtree, ctx=ctx)
 
-    def __status_url(self, ctx, server_preferred=False):
-        result = []
+    @staticmethod
+    def __status_url(ctx, server_preferred=False):
+        """
+        Creates stub/plus status url based on context
+
+        :param ctx: {} of current parsing context
+        :param server_preferred: bool - use server_name instead of listen
+        :return: [] of urls
+        """
+        results = []
         location = ctx.get('location', '/')
 
         # remove all modifiers
         location_parts = location.split(' ')
         final_location_part = location_parts[-1]
 
-        for ip_port in ctx.get('ip_port'):
-            addr, port = ip_port
-            if server_preferred and 'server_name' in ctx:
-                if isinstance(ctx['server_name'], list):
-                    addr = ctx['server_name'][0].split(' ')[0]
-                else:
-                    addr = ctx['server_name'].split(' ')[0]
+        # generate a random sting that will fit regex location
+        if location.startswith('~'):
+            try:
+                exact_location = rstr.xeger(final_location_part)
 
-            result.append('%s:%s%s' % (addr, port, final_location_part))
+                # check that regex location has / and add it
+                if not exact_location.startswith('/'):
+                    exact_location = '/%s' % exact_location
+            except:
+                context.log.debug('bad regex location: %s' % final_location_part)
+                exact_location = None
+        else:
+            exact_location = final_location_part
 
-        return result
+            # if an exact location doesn't have / that's not a working location, we should not use it
+            if not exact_location.startswith('/'):
+                context.log.debug('bad exact location: %s' % final_location_part)
+                exact_location = None
+
+        if exact_location:
+            for ip_port in ctx.get('ip_port'):
+                address, port = ip_port
+                if server_preferred and 'server_name' in ctx:
+                    if isinstance(ctx['server_name'], list):
+                        address = ctx['server_name'][0].split(' ')[0]
+                    else:
+                        address = ctx['server_name'].split(' ')[0]
+
+                results.append('%s:%s%s' % (address, port, exact_location))
+
+        return results
 
     def run_test(self):
         """
@@ -312,7 +340,7 @@ class NginxConfig(object):
         Iterate over a list of ssl_certificate definitions and run ssl_analysis to construct a dictionary with
         ssl_certificate value paired with results fo ssl_analysis.
 
-        :return: Dict
+        :return: float run time
         """
         if not self.parser.ssl_certificates:
             return

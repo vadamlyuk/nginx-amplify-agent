@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 from hamcrest import *
 
-from test.base import NginxCollectorTestCase
-from amplify.agent.containers.nginx.log.error import NginxErrorLogParser
 from amplify.agent.containers.nginx.collectors.errorlog import NginxErrorLogsCollector
+from test.base import NginxCollectorTestCase
 
 
 __author__ = "Mike Belov"
@@ -55,4 +54,4 @@ class LogsOverallTestCase(NginxCollectorTestCase):
 
         # check zero values
         for error_counter in collector.counters:
-            assert_that(counter, has_key('C|nginx.%s' % error_counter))
+            assert_that(counter, has_key('C|%s' % error_counter))

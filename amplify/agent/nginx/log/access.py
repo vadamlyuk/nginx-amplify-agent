@@ -12,7 +12,7 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
-REQUEST_RE = re.compile(r'(?P<http_method>[A-Z]+) (?P<request_uri>/.*) HTTP/(?P<http_version>[\d\.]+)')
+REQUEST_RE = re.compile(r'(?P<request_method>[A-Z]+) (?P<request_uri>/.*) (?P<server_protocol>.+)')
 
 
 class NginxAccessLogParser(object):
@@ -49,9 +49,9 @@ class NginxAccessLogParser(object):
     }
 
     request_variables = {
-        'http_method': ['[A-Z]+', str],
+        'request_method': ['[A-Z]+', str],
         'request_uri': ['/.*', str],
-        'http_version': ['[\d\.]+', str],
+        'server_protocol': ['[\d\.]+', str],
     }
 
     def __init__(self, raw_format=None):

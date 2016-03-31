@@ -16,6 +16,7 @@ class TestingConfig(Config):
 
     config_changes = dict(
         cloud=dict(
+            api_url=DEFAULT_API_URL,
             verify_ssl_cert=False,
         ),
         credentials=dict(

@@ -17,13 +17,13 @@ from amplify.agent.util import configreader
 from amplify.agent.context import context
 from amplify.agent.containers.abstract import AbstractObject
 
+
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
 __credits__ = ["Mike Belov", "Andrei Belov", "Ivan Poluyanov", "Oleg Mamontov", "Andrew Alexeev"]
 __license__ = ""
 __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
-
 
 
 class BaseTestCase(TestCase):
@@ -40,6 +40,25 @@ class BaseTestCase(TestCase):
         context.default_log.info(
             '%s %s::%s %s' % ('=' * 20, self.__class__.__name__, self._testMethodName, '=' * 20)
         )
+
+        # modify http client to store http requests
+        from amplify.agent.util.http import HTTPClient
+        self.http_requests = []
+
+        original_get = HTTPClient.get
+        original_post = HTTPClient.post
+
+        def fake_get(obj, url, *args, **kwargs):
+            self.http_requests.append(url)
+            return original_get(obj, url, *args, **kwargs)
+
+        def fake_post(obj, url, *args, **kwargs):
+            self.http_requests.append(url)
+            return original_post(obj, url, *args, **kwargs)
+
+        HTTPClient.get = fake_get
+        HTTPClient.post = fake_post
+
 
     def teardown_method(self, method):
         pass

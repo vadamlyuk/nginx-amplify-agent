@@ -47,8 +47,10 @@ class AbstractConfig(object):
             with open(self.filename, 'wb') as configfile:
                 self.from_file.write(configfile)
 
-    def get(self, section):
-        return self.config.get(section)
+    def get(self, section, default=None):
+        if default is None:
+            default = {}
+        return self.config.get(section, default)
 
     def __getitem__(self, item):
         return self.config[item]

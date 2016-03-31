@@ -50,38 +50,38 @@ class SystemMetricsCollector(AbstractCollector):
     def virtual_memory(self):
         """ virtual memory """
         virtual_memory = psutil.virtual_memory()
-        self.statsd.gauge('mem.total', virtual_memory.total)
-        self.statsd.gauge('mem.used', virtual_memory.used)
-        self.statsd.gauge('mem.cached', virtual_memory.cached)
-        self.statsd.gauge('mem.buffered', virtual_memory.buffers)
-        self.statsd.gauge('mem.free', virtual_memory.free)
-        self.statsd.gauge('mem.pct_used', virtual_memory.percent)
-        self.statsd.gauge('mem.available', virtual_memory.available)
+        self.statsd.gauge('system.mem.total', virtual_memory.total)
+        self.statsd.gauge('system.mem.used', virtual_memory.used)
+        self.statsd.gauge('system.mem.cached', virtual_memory.cached)
+        self.statsd.gauge('system.mem.buffered', virtual_memory.buffers)
+        self.statsd.gauge('system.mem.free', virtual_memory.free)
+        self.statsd.gauge('system.mem.pct_used', virtual_memory.percent)
+        self.statsd.gauge('system.mem.available', virtual_memory.available)
 
         # BSD
         if hasattr(virtual_memory, 'shared'):
-            self.statsd.gauge('mem.shared', virtual_memory.shared)
+            self.statsd.gauge('system.mem.shared', virtual_memory.shared)
 
     def swap(self):
         """ swap """
         swap_memory = psutil.swap_memory()
-        self.statsd.gauge('swap.total', swap_memory.total)
-        self.statsd.gauge('swap.used', swap_memory.used)
-        self.statsd.gauge('swap.free', swap_memory.free)
-        self.statsd.gauge('swap.pct_free', swap_memory.percent)
+        self.statsd.gauge('system.swap.total', swap_memory.total)
+        self.statsd.gauge('system.swap.used', swap_memory.used)
+        self.statsd.gauge('system.swap.free', swap_memory.free)
+        self.statsd.gauge('system.swap.pct_free', swap_memory.percent)
 
     def cpu(self):
         """ cpu """
         cpu_times = psutil.cpu_times_percent()
-        self.statsd.gauge('cpu.user', cpu_times.user)
-        self.statsd.gauge('cpu.system', cpu_times.system)
-        self.statsd.gauge('cpu.idle', cpu_times.idle)
+        self.statsd.gauge('system.cpu.user', cpu_times.user)
+        self.statsd.gauge('system.cpu.system', cpu_times.system)
+        self.statsd.gauge('system.cpu.idle', cpu_times.idle)
 
         if hasattr(cpu_times, 'iowait'):
-            self.statsd.gauge('cpu.iowait', cpu_times.iowait)
+            self.statsd.gauge('system.cpu.iowait', cpu_times.iowait)
 
         if hasattr(cpu_times, 'steal'):
-            self.statsd.gauge('cpu.stolen', cpu_times.steal)
+            self.statsd.gauge('system.cpu.stolen', cpu_times.steal)
 
     def disk_partitions(self):
         """ disk partitions usage """
@@ -93,19 +93,19 @@ class SystemMetricsCollector(AbstractCollector):
             overall_used += usage.used
             overall_total += usage.total
             overall_free += usage.free
-            self.statsd.gauge('disk.total|%s' % part.mountpoint, usage.total)
-            self.statsd.gauge('disk.used|%s' % part.mountpoint, usage.used)
-            self.statsd.gauge('disk.free|%s' % part.mountpoint, usage.free)
+            self.statsd.gauge('system.disk.total|%s' % part.mountpoint, usage.total)
+            self.statsd.gauge('system.disk.used|%s' % part.mountpoint, usage.used)
+            self.statsd.gauge('system.disk.free|%s' % part.mountpoint, usage.free)
 
             in_use = float(usage.used) / float(usage.total) * 100.0 if usage.total else 0.0
-            self.statsd.gauge('disk.in_use|%s' % part.mountpoint, in_use)
+            self.statsd.gauge('system.disk.in_use|%s' % part.mountpoint, in_use)
 
-        self.statsd.gauge('disk.total', overall_total)
-        self.statsd.gauge('disk.used', overall_used)
-        self.statsd.gauge('disk.free', overall_free)
+        self.statsd.gauge('system.disk.total', overall_total)
+        self.statsd.gauge('system.disk.used', overall_used)
+        self.statsd.gauge('system.disk.free', overall_free)
 
         in_use_total = float(overall_used) / float(overall_total) * 100.0 if overall_total else 0.0
-        self.statsd.gauge('disk.in_use', in_use_total)
+        self.statsd.gauge('system.disk.in_use', in_use_total)
 
     def disk_io_counters(self):
         """ disk io counters """
@@ -115,15 +115,15 @@ class SystemMetricsCollector(AbstractCollector):
         disk_counters.update(psutil.disk_io_counters(perdisk=True))
 
         simple_metrics = {
-            'write_count': ['io.iops_w', 1, self.statsd.incr],
-            'write_bytes': ['io.kbs_w', 1024, self.statsd.incr],
-            'read_count': ['io.iops_r', 1, self.statsd.incr],
-            'read_bytes': ['io.kbs_r', 1024, self.statsd.incr],
+            'write_count': ['system.io.iops_w', 1, self.statsd.incr],
+            'write_bytes': ['system.io.kbs_w', 1024, self.statsd.incr],
+            'read_count': ['system.io.iops_r', 1, self.statsd.incr],
+            'read_bytes': ['system.io.kbs_r', 1024, self.statsd.incr],
         }
 
         complex_metrics = {
-            'write_time': ['io.wait_w', 1, self.statsd.gauge],
-            'read_time': ['io.wait_r', 1, self.statsd.gauge],
+            'write_time': ['system.io.wait_w', 1, self.statsd.gauge],
+            'read_time': ['system.io.wait_r', 1, self.statsd.gauge],
         }
 
         for disk, io in disk_counters.iteritems():
@@ -175,14 +175,14 @@ class SystemMetricsCollector(AbstractCollector):
         """
         totals = defaultdict(int)
         metrics = {
-            'packets_sent': 'net.packets_out.count',
-            'packets_recv': 'net.packets_in.count',
-            'bytes_sent': 'net.bytes_sent',
-            'bytes_recv': 'net.bytes_rcvd',
-            'errin': 'net.packets_in.error',
-            'errout': 'net.packets_out.error',
-            'dropin': 'net.drops_in.count',
-            'dropout': 'net.drops_out.count'
+            'packets_sent': 'system.net.packets_out.count',
+            'packets_recv': 'system.net.packets_in.count',
+            'bytes_sent': 'system.net.bytes_sent',
+            'bytes_recv': 'system.net.bytes_rcvd',
+            'errin': 'system.net.packets_in.error',
+            'errout': 'system.net.packets_out.error',
+            'dropin': 'system.net.drops_in.count',
+            'dropout': 'system.net.drops_out.count'
         }
 
         net_io_counters = psutil.net_io_counters(pernic=True)
@@ -211,9 +211,9 @@ class SystemMetricsCollector(AbstractCollector):
     def la(self):
         """ load average """
         la = os.getloadavg()
-        self.statsd.gauge('load.1', la[0])
-        self.statsd.gauge('load.5', la[1])
-        self.statsd.gauge('load.15', la[2])
+        self.statsd.gauge('system.load.1', la[0])
+        self.statsd.gauge('system.load.5', la[1])
+        self.statsd.gauge('system.load.15', la[2])
 
     def netstat(self):
         """
@@ -226,9 +226,9 @@ class SystemMetricsCollector(AbstractCollector):
         gwe = re.match('\s*(\d+)\s*', netstat_out.pop(0))
 
         new_value = int(gwe.group(1)) if gwe else 0
-        prev_stamp, prev_value = self.previous_values.get('net.listen_overflows', [None, None])
+        prev_stamp, prev_value = self.previous_values.get('system.net.listen_overflows', [None, None])
         if prev_stamp:
             delta_value = new_value - prev_value
-            self.statsd.incr('net.listen_overflows', delta_value)
+            self.statsd.incr('system.net.listen_overflows', delta_value)
 
-        self.previous_values['net.listen_overflows'] = [new_stamp, new_value]
+        self.previous_values['system.net.listen_overflows'] = [new_stamp, new_value]

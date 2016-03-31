@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from amplify.agent.containers.nginx.log.access import NginxAccessLogParser
-from amplify.agent.util.tail import FileTail
-from amplify.agent.context import context
 from amplify.agent.containers.abstract import AbstractCollector
+from amplify.agent.context import context
+from amplify.agent.nginx.log.access import NginxAccessLogParser
+from amplify.agent.util.tail import FileTail
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -17,40 +17,40 @@ class NginxAccessLogsCollector(AbstractCollector):
     short_name = 'nginx_alog'
 
     counters = {
-        'http.method.head': 'http_method',
-        'http.method.get': 'http_method',
-        'http.method.post': 'http_method',
-        'http.method.put': 'http_method',
-        'http.method.delete': 'http_method',
-        'http.method.options': 'http_method',
-        'http.method.other': 'http_method',
-        'http.status.1xx': 'status',
-        'http.status.2xx': 'status',
-        'http.status.3xx': 'status',
-        'http.status.4xx': 'status',
-        'http.status.5xx': 'status',
-        'http.status.discarded': 'status',
-        'http.v0_9': 'http_version',
-        'http.v1_0': 'http_version',
-        'http.v1_1': 'http_version',
-        'http.v2': 'http_version',
-        'http.request.body_bytes_sent': 'body_bytes_sent',
-        'http.request.bytes_sent': 'bytes_sent',
-        'http.request.length': 'request_length',
-        'upstream.http.status.1xx': 'upstream_status',
-        'upstream.http.status.2xx': 'upstream_status',
-        'upstream.http.status.3xx': 'upstream_status',
-        'upstream.http.status.4xx': 'upstream_status',
-        'upstream.http.status.5xx': 'upstream_status',
-        'upstream.http.response.length': 'upstream_response_length',
+        'nginx.http.method.head': 'request_method',
+        'nginx.http.method.get': 'request_method',
+        'nginx.http.method.post': 'request_method',
+        'nginx.http.method.put': 'request_method',
+        'nginx.http.method.delete': 'request_method',
+        'nginx.http.method.options': 'request_method',
+        'nginx.http.method.other': 'request_method',
+        'nginx.http.status.1xx': 'status',
+        'nginx.http.status.2xx': 'status',
+        'nginx.http.status.3xx': 'status',
+        'nginx.http.status.4xx': 'status',
+        'nginx.http.status.5xx': 'status',
+        'nginx.http.status.discarded': 'status',
+        'nginx.http.v0_9': 'server_protocol',
+        'nginx.http.v1_0': 'server_protocol',
+        'nginx.http.v1_1': 'server_protocol',
+        'nginx.http.v2': 'server_protocol',
+        'nginx.http.request.body_bytes_sent': 'body_bytes_sent',
+        'nginx.http.request.bytes_sent': 'bytes_sent',
+        'nginx.http.request.length': 'request_length',
+        'nginx.upstream.http.status.1xx': 'upstream_status',
+        'nginx.upstream.http.status.2xx': 'upstream_status',
+        'nginx.upstream.http.status.3xx': 'upstream_status',
+        'nginx.upstream.http.status.4xx': 'upstream_status',
+        'nginx.upstream.http.status.5xx': 'upstream_status',
+        'nginx.upstream.http.response.length': 'upstream_response_length',
+        'nginx.cache.bypass': 'upstream_cache_status',
+        'nginx.cache.expired': 'upstream_cache_status',
+        'nginx.cache.hit': 'upstream_cache_status',
+        'nginx.cache.miss': 'upstream_cache_status',
+        'nginx.cache.revalidated': 'upstream_cache_status',
+        'nginx.cache.stale': 'upstream_cache_status',
+        'nginx.cache.updating': 'upstream_cache_status',
         # 'upstream.next.count': None,  # Not sure how best to handle this since this...ignoring for now.
-        'cache.bypass': 'upstream_cache_status',
-        'cache.expired': 'upstream_cache_status',
-        'cache.hit': 'upstream_cache_status',
-        'cache.miss': 'upstream_cache_status',
-        'cache.revalidated': 'upstream_cache_status',
-        'cache.stale': 'upstream_cache_status',
-        'cache.updating': 'upstream_cache_status',
         # 'upstream.request.count': None  # Not sure how to handle for same reason above.
     }
 
@@ -68,6 +68,15 @@ class NginxAccessLogsCollector(AbstractCollector):
         self.filename = filename
         self.parser = NginxAccessLogParser(log_format)
         self.tail = tail if tail is not None else FileTail(filename)
+        self.filters = []
+        
+        # skip empty filters and filters for other log file
+        for log_filter in self.object.filters:
+            if log_filter.empty:
+                continue
+            if log_filter.filename and log_filter.filename != self.filename:
+                continue
+            self.filters.append(log_filter)
 
     def init_counters(self):
         for counter, key in self.counters.iteritems():
@@ -93,17 +102,25 @@ class NginxAccessLogsCollector(AbstractCollector):
             if parsed['malformed']:
                 self.request_malformed()
             else:
+                # try to match custom filters 
+                matched_filters = []
+                for log_filter in self.filters:
+                    if log_filter.match(parsed):
+                        matched_filters.append(log_filter)
+                
                 for method in (
                     self.http_method,
                     self.http_status,
                     self.http_version,
-                    self.bytes_sent_rcvd,
+                    self.request_length,
+                    self.body_bytes_sent,
+                    self.bytes_sent,
                     self.gzip_ration,
                     self.request_time,
-                    self.upstreams
+                    self.upstreams,
                 ):
                     try:
-                        method(parsed)
+                        method(parsed, matched_filters)
                     except Exception as e:
                         exception_name = e.__class__.__name__
                         context.log.error(
@@ -116,9 +133,9 @@ class NginxAccessLogsCollector(AbstractCollector):
         """
         nginx.http.request.malformed
         """
-        self.statsd.incr('http.request.malformed')
+        self.statsd.incr('nginx.http.request.malformed')
 
-    def http_method(self, data):
+    def http_method(self, data, matched_filters=None):
         """
         nginx.http.method.head
         nginx.http.method.get
@@ -127,14 +144,21 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.http.method.delete
         nginx.http.method.options
         nginx.http.method.other
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
-        if 'http_method' in data:
-            method = data['http_method'].lower()
+        if 'request_method' in data:
+            method = data['request_method'].lower()
             method = method if method in self.valid_http_methods else 'other'
-            metric_name = 'http.method.%s' % method
+            metric_name = 'nginx.http.method.%s' % method
             self.statsd.incr(metric_name)
 
-    def http_status(self, data):
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
+
+    def http_status(self, data, matched_filters=None):
         """
         nginx.http.status.1xx
         nginx.http.status.2xx
@@ -142,22 +166,37 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.http.status.4xx
         nginx.http.status.5xx
         nginx.http.status.discarded
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
         if 'status' in data:
             status = data['status']
             suffix = 'discarded' if status in ('499', '444', '408') else '%sxx' % status[0]
-            metric_name = 'http.status.%s' % suffix
+            metric_name = 'nginx.http.status.%s' % suffix
             self.statsd.incr(metric_name)
 
-    def http_version(self, data):
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
+
+    def http_version(self, data, matched_filters=None):
         """
         nginx.http.v0_9
         nginx.http.v1_0
         nginx.http.v1_1
         nginx.http.v2
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
-        if 'http_version' in data:
-            version = data['http_version']
+        if 'server_protocol' in data:
+            proto = data['server_protocol']
+            if not proto.startswith('HTTP'):
+                return
+
+            version = proto.split('/')[-1]
+
             if version.startswith('0.9'):
                 suffix = '0_9'
             elif version.startswith('1.0'):
@@ -169,43 +208,93 @@ class NginxAccessLogsCollector(AbstractCollector):
             else:
                 suffix = version.replace('.', '_')
 
-            metric_name = 'http.v%s' % suffix
+            metric_name = 'nginx.http.v%s' % suffix
             self.statsd.incr(metric_name)
 
-    def bytes_sent_rcvd(self, data):
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
+
+    def request_length(self, data, matched_filters=None):
         """
-        nginx.http.request.body_bytes_sent
-        nginx.http.request.bytes_sent
         nginx.http.request.length
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
         if 'request_length' in data:
-            self.statsd.incr('http.request.length', data['request_length'])
+            metric_name, value = 'nginx.http.request.length', data['request_length']
+            self.statsd.incr(metric_name, value)
 
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, value, self.statsd.incr)
+
+    def body_bytes_sent(self, data, matched_filters=None):
+        """
+        nginx.http.request.body_bytes_sent
+
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
+        """
         if 'body_bytes_sent' in data:
-            self.statsd.incr('http.request.body_bytes_sent', data['body_bytes_sent'])
+            metric_name, value = 'nginx.http.request.body_bytes_sent', data['body_bytes_sent']
+            self.statsd.incr(metric_name, value)
 
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, value, self.statsd.incr)
+
+    def bytes_sent(self, data, matched_filters=None):
+        """
+        nginx.http.request.bytes_sent
+
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
+        """
         if 'bytes_sent' in data:
-            self.statsd.incr('http.request.bytes_sent', data['bytes_sent'])
+            metric_name, value = 'nginx.http.request.bytes_sent', data['bytes_sent']
+            self.statsd.incr(metric_name, value)
 
-    def gzip_ration(self, data):
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, value, self.statsd.incr)
+
+    def gzip_ration(self, data, matched_filters=None):
         """
         nginx.http.gzip.ratio
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
         if 'gzip_ratio' in data:
-            self.statsd.average('http.gzip.ratio', data['gzip_ratio'])
+            metric_name, value = 'nginx.http.gzip.ratio', data['gzip_ratio']
+            self.statsd.average(metric_name, value)
 
-    def request_time(self, data):
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, value, self.statsd.average)
+
+    def request_time(self, data, matched_filters=None):
         """
         nginx.http.request.time
         nginx.http.request.time.median
         nginx.http.request.time.max
         nginx.http.request.time.pctl95
         nginx.http.request.time.count
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
         if 'request_time' in data:
-            self.statsd.timer('http.request.time', sum(data['request_time']))
+            metric_name, value = 'nginx.http.request.time', sum(data['request_time'])
+            self.statsd.timer(metric_name, value)
 
-    def upstreams(self, data):
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, value, self.statsd.timer)
+
+    def upstreams(self, data, matched_filters=None):
         """
         nginx.cache.bypass
         nginx.cache.expired
@@ -237,6 +326,9 @@ class NginxAccessLogsCollector(AbstractCollector):
         nginx.upstream.http.status.4xx
         nginx.upstream.http.status.5xx
         nginx.upstream.http.response.length
+        
+        :param data: {} of parsed line
+        :param matched_filters: [] of matched filters
         """
 
         # find out if we have info about upstreams
@@ -255,19 +347,28 @@ class NginxAccessLogsCollector(AbstractCollector):
         if 'upstream_status' in data:
             status = data['upstream_status']
             suffix = '%sxx' % status[0]
-            metric_name = 'upstream.http.status.%s' % suffix
+            metric_name = 'nginx.upstream.http.status.%s' % suffix
             upstream_response = True if suffix in ('2xx', '3xx') else False  # Set flag for upstream length processing
             self.statsd.incr(metric_name)
 
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
+
         if upstream_response and 'upstream_response_length' in data:
-            self.statsd.incr('upstream.http.response.length', data['upstream_response_length'])
+            metric_name, value = 'nginx.upstream.http.response.length', data['upstream_response_length']
+            self.statsd.incr(metric_name, value)
+
+            # call custom filters
+            if matched_filters:
+                self.count_custom_filter(matched_filters, metric_name, value, self.statsd.incr)
 
         # gauges
         upstream_switches = None
         for metric_name, key_name in {
-            'upstream.connect.time': 'upstream_connect_time',
-            'upstream.response.time': 'upstream_response_time',
-            'upstream.header.time': 'upstream_header_time'
+            'nginx.upstream.connect.time': 'upstream_connect_time',
+            'nginx.upstream.response.time': 'upstream_response_time',
+            'nginx.upstream.header.time': 'upstream_header_time'
         }.iteritems():
             if key_name in data:
                 values = data[key_name]
@@ -277,17 +378,52 @@ class NginxAccessLogsCollector(AbstractCollector):
                     upstream_switches = len(values) - 1
 
                 # store all values
-                self.statsd.timer(metric_name, sum(values))
+                value = sum(values)
+                self.statsd.timer(metric_name, value)
+
+                # call custom filters
+                if matched_filters:
+                    self.count_custom_filter(matched_filters, metric_name, value, self.statsd.timer)
 
         # log upstream switches
-        self.statsd.incr('upstream.next.count', 0 if upstream_switches is None else upstream_switches)
+        metric_name, value = 'nginx.upstream.next.count', 0 if upstream_switches is None else upstream_switches
+        self.statsd.incr(metric_name, value)
+
+        # call custom filters
+        if matched_filters:
+            self.count_custom_filter(matched_filters, metric_name, value, self.statsd.incr)
 
         # cache
         if 'upstream_cache_status' in data:
             cache_status = data['upstream_cache_status']
             if not cache_status.startswith('-'):
-                metric_name = 'cache.%s' % cache_status.lower()
+                metric_name = 'nginx.cache.%s' % cache_status.lower()
                 self.statsd.incr(metric_name)
 
+                # call custom filters
+                if matched_filters:
+                    self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
+
         # log total upstream requests
-        self.statsd.incr('upstream.request.count')
+        metric_name = 'nginx.upstream.request.count'
+        self.statsd.incr(metric_name)
+
+        # call custom filters
+        if matched_filters:
+            self.count_custom_filter(matched_filters, metric_name, 1, self.statsd.incr)
+
+    @staticmethod
+    def count_custom_filter(matched_filters, metric_name, value, method):
+        """
+        Collect custom metric
+
+        :param matched_filters: [] of matched filters
+        :param metric_name: str metric name
+        :param value: int/float value
+        :param method: function to call
+        :return:
+        """
+        for log_filter in matched_filters:
+            if log_filter.metric == metric_name:
+                full_metric_name = '%s||%s' % (log_filter.metric, log_filter.filter_rule_id)
+                method(full_metric_name, value)

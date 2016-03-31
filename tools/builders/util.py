@@ -11,6 +11,16 @@ __maintainer__ = "Mike Belov"
 __email__ = "dedm@nginx.com"
 
 
+def color_print(message, color='green'):
+    if color == 'red':
+        template = '\033[31m%s\033[0m'
+    elif color == 'green':
+        template = '\033[32m%s\033[0m'
+    elif color == 'yellow':
+        template = '\033[33m%s\033[0m'
+    print (template % message)
+
+
 def shell_call(cmd, terminal=False, important=True):
     """
     Runs shell command

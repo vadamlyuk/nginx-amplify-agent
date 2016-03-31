@@ -5,7 +5,6 @@ import gc
 from threading import current_thread
 from collections import deque
 
-from amplify.agent.util import memusage
 from amplify.agent.context import context
 from amplify.agent import Singleton
 
@@ -26,7 +25,8 @@ class Bridge(Singleton):
         # Instantiate payload with appropriate keys and buckets.
         self._reset_payload()
 
-    def look_around(self):
+    @staticmethod
+    def look_around():
         """
         Checks everything around and make appropriate tree structure
         :return: dict of structure
@@ -36,25 +36,15 @@ class Bridge(Singleton):
         return tree
 
     def run(self):
-        # TODO: stop after 3 fatal errors
         current_thread().name = 'bridge'
         context.setup_thread_id()
 
         try:
             while True:
-                m_size_b, m_rss_b = memusage.report()
                 self.wait()
-
                 context.inc_action_id()
                 self.flush_all()
-
                 gc.collect()
-                m_size_a, m_rss_a = memusage.report()
-                context.log.debug('mem before: (%s %s), after (%s, %s)' % (m_size_b, m_rss_b, m_size_a, m_rss_a))
-                if m_rss_a >= m_rss_b:
-                    context.log.debug('RSS MEMORY same or increased, diff %s' % (m_rss_a-m_rss_b))
-                elif m_size_a >= m_size_b:
-                    context.log.debug('VSIZE MEMORY same or increased, diff %s' % (m_size_a-m_size_b))
         except:
             context.default_log.error('failed', exc_info=True)
             raise
@@ -77,6 +67,7 @@ class Bridge(Singleton):
                 flush_data = containers[container_type].__call__()
                 if flush_data:
                     self.payload[container_type].append(flush_data)
+
         context.log.debug(
             'modified payload; current payload stats: '
             'meta - %s, metrics - %s, events - %s, configs - %s' % (

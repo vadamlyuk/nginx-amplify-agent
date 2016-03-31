@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 import re
+
 import psutil
 
-from amplify.agent.containers.nginx.binary import nginx_v
-from amplify.agent.util import subp
-from amplify.agent.context import context
 from amplify.agent.containers.abstract import AbstractCollector
-from amplify.agent.eventd import INFO
-
+from amplify.agent.context import context
+from amplify.agent.nginx.binary import nginx_v
+from amplify.agent.util import subp
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."

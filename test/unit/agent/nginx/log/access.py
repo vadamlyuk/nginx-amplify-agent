@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from hamcrest import *
 
-from amplify.agent.containers.nginx.log.access import NginxAccessLogParser
+from amplify.agent.nginx.log.access import NginxAccessLogParser
 from test.base import BaseTestCase
 
 __author__ = "Mike Belov"
@@ -60,9 +60,9 @@ class LogParserTestCase(BaseTestCase):
         for key in request_expected_keys:
             assert_that(parsed, has_item(key))
 
-        assert_that(parsed['http_method'], equal_to('GET'))
+        assert_that(parsed['request_method'], equal_to('GET'))
         assert_that(parsed['request_uri'], equal_to('/basic_status'))
-        assert_that(parsed['http_version'], equal_to('1.1'))
+        assert_that(parsed['server_protocol'], equal_to('HTTP/1.1'))
 
     def test_mailformed_request(self):
         line = '10.0.0.1 - - [03/Jul/2015:04:46:18 -0400] "/xxx?q=1 GET POST" 400 173 "-" "-" "-"'
@@ -110,11 +110,11 @@ class LogParserTestCase(BaseTestCase):
 
         # check second line
         parsed = parser.parse(lines[1])
-        assert_that(parsed['http_method'], equal_to('PUT'))
+        assert_that(parsed['request_method'], equal_to('PUT'))
 
         # check second line
         parsed = parser.parse(lines[2])
-        assert_that(parsed['http_version'], equal_to('2.1'))
+        assert_that(parsed['server_protocol'], equal_to('HTTP/2.1'))
         assert_that(parsed['request_time'], equal_to([0.134]))
 
     def test_complex_user_format(self):
@@ -245,7 +245,7 @@ class LogParserTestCase(BaseTestCase):
 
         assert_that(parsed, has_item('request_uri'))
         assert_that(parsed['request_uri'], equal_to('/'))
-        assert_that(parsed['http_version'], equal_to('2.0'))
+        assert_that(parsed['server_protocol'], equal_to('HTTP/2.0'))
 
     def test_tab_config(self):
         user_format = \

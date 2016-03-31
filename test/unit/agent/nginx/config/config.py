@@ -3,9 +3,9 @@ import os
 
 from hamcrest import *
 
-from test.base import BaseTestCase
 from amplify.agent.context import context
-from amplify.agent.containers.nginx.config.config import NginxConfig
+from amplify.agent.nginx.config.config import NginxConfig
+from test.base import BaseTestCase
 
 __author__ = "Mike Belov"
 __copyright__ = "Copyright (C) Nginx, Inc. All rights reserved."
@@ -25,6 +25,7 @@ tabs_config = os.getcwd() + '/test/fixtures/nginx/custom/tabs.conf'
 fastcgi_config = os.getcwd() + '/test/fixtures/nginx/fastcgi/nginx.conf'
 json_config = os.getcwd() + '/test/fixtures/nginx/custom/json.conf'
 ssl_simple_config = os.getcwd() + '/test/fixtures/nginx/ssl/simple/nginx.conf'
+regex_status_config = os.getcwd() + '/test/fixtures/nginx/regex_status/nginx.conf'
 
 
 class ConfigTestCase(BaseTestCase):
@@ -227,3 +228,35 @@ class ConfigTestCase(BaseTestCase):
         # check contents
         assert_that(ssl_certificates.keys()[0], ends_with('certs.d/example.com.crt'))
         assert_that(ssl_certificates.values()[0], has_item('names'))
+
+    def test_regex_status_url(self):
+        """
+        Check that we could handle regex urls like
+
+        location ~ /(nginx_status|status)
+        location ~ ^/nginx_status$
+        """
+        config = NginxConfig(regex_status_config)
+        config.full_parse()
+
+        # check total amount of status urls
+        assert_that(config.stub_status_urls, has_length(4))  # we have 4 valid locations in the regex_status/status.conf
+
+        # check each location
+        valid_urls_dict = {
+            '1.1.1.1:80': [
+                '1.1.1.1:80/nginx_status',
+                '1.1.1.1:80/status',
+            ],
+            '1.1.1.1:81': ['1.1.1.1:81/nginx_status'],
+            '1.1.1.1:82': [
+                '1.1.1.1:82/status_weird_thing', '1.1.1.1:82/nginx_status_weird_thing',
+                '1.1.1.1:82/status_weird_some', '1.1.1.1:82/nginx_status_weird_some'
+            ],
+            '1.1.1.1:84': ['1.1.1.1:84/valid_location'],
+        }
+
+        for url in config.stub_status_urls:
+            address = url.split('/')[0]
+            valid_urls = valid_urls_dict[address]
+            assert_that(valid_urls, has_item(url))

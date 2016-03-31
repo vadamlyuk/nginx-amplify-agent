@@ -73,7 +73,7 @@ class NginxMetricsCollector(AbstractCollector):
 
     def workers_count(self):
         """nginx.workers.count"""
-        self.statsd.gauge('workers.count', len(self.object.workers))
+        self.statsd.gauge('nginx.workers.count', len(self.object.workers))
 
     def handle_zombie(self, pid):
         """
@@ -103,9 +103,9 @@ class NginxMetricsCollector(AbstractCollector):
             except psutil.ZombieProcess:
                 self.handle_zombie(p.pid)
 
-        self.statsd.gauge('workers.mem.rss', rss)
-        self.statsd.gauge('workers.mem.vms', vms)
-        self.statsd.gauge('workers.mem.rss_pct', pct)
+        self.statsd.gauge('nginx.workers.mem.rss', rss)
+        self.statsd.gauge('nginx.workers.mem.vms', vms)
+        self.statsd.gauge('nginx.workers.mem.rss_pct', pct)
 
     def workers_fds_count(self):
         """nginx.workers.fds_count"""
@@ -117,7 +117,7 @@ class NginxMetricsCollector(AbstractCollector):
                 fds += p.num_fds()
             except psutil.ZombieProcess:
                 self.handle_zombie(p.pid)
-        self.statsd.incr('workers.fds_count', fds)
+        self.statsd.incr('nginx.workers.fds_count', fds)
 
     def workers_rlimit_nofile(self):
         """
@@ -133,7 +133,7 @@ class NginxMetricsCollector(AbstractCollector):
                 rlimit += p.rlimit_nofile()
             except psutil.ZombieProcess:
                 self.handle_zombie(p.pid)
-        self.statsd.gauge('workers.rlimit_nofile', rlimit)
+        self.statsd.gauge('nginx.workers.rlimit_nofile', rlimit)
 
     def workers_io(self):
         """
@@ -160,7 +160,7 @@ class NginxMetricsCollector(AbstractCollector):
         write /= 1024
 
         # get deltas and store metrics
-        for metric_name, value in {'workers.io.kbs_r': read, 'workers.io.kbs_w': write}.iteritems():
+        for metric_name, value in {'nginx.workers.io.kbs_r': read, 'nginx.workers.io.kbs_w': write}.iteritems():
             prev_stamp, prev_value = self.previous_values.get(metric_name, [None, None])
             if prev_stamp:
                 value_delta = value - prev_value
@@ -184,9 +184,9 @@ class NginxMetricsCollector(AbstractCollector):
                 worker_sys += s
             except psutil.ZombieProcess:
                 self.handle_zombie(p.pid)
-        self.statsd.gauge('workers.cpu.total', worker_user + worker_sys)
-        self.statsd.gauge('workers.cpu.user', worker_user)
-        self.statsd.gauge('workers.cpu.system', worker_sys)
+        self.statsd.gauge('nginx.workers.cpu.total', worker_user + worker_sys)
+        self.statsd.gauge('nginx.workers.cpu.user', worker_user)
+        self.statsd.gauge('nginx.workers.cpu.system', worker_sys)
 
     def status(self):
         """
@@ -196,7 +196,7 @@ class NginxMetricsCollector(AbstractCollector):
         """
         if self.object.plus_status_enabled and self.object.plus_status_internal_url:
             self.plus_status()
-        elif self.object.stub_status_enabled:
+        elif self.object.stub_status_enabled and self.object.stub_status_url:
             self.stub_status()
         else:
             return
@@ -224,9 +224,9 @@ class NginxMetricsCollector(AbstractCollector):
         except:
             context.log.error('failed to check stub_status url %s' % self.object.stub_status_url)
             context.log.debug('additional info', exc_info=True)
+            stub_body = None
 
         if not stub_body:
-            context.log.error('failed to check stub_status url %s' % self.object.stub_status_url)
             return
 
         # parse body
@@ -244,18 +244,18 @@ class NginxMetricsCollector(AbstractCollector):
         stub['dropped'] = stub['accepts'] - stub['handled']
 
         # gauges
-        self.statsd.gauge('http.conn.current', stub['connections'])
-        self.statsd.gauge('http.conn.active', stub['connections'] - stub['waiting'])
-        self.statsd.gauge('http.conn.idle', stub['waiting'])
-        self.statsd.gauge('http.request.writing', stub['writing'])
-        self.statsd.gauge('http.request.reading', stub['reading'])
-        self.statsd.gauge('http.request.current', stub['reading'] + stub['writing'])
+        self.statsd.gauge('nginx.http.conn.current', stub['connections'])
+        self.statsd.gauge('nginx.http.conn.active', stub['connections'] - stub['waiting'])
+        self.statsd.gauge('nginx.http.conn.idle', stub['waiting'])
+        self.statsd.gauge('nginx.http.request.writing', stub['writing'])
+        self.statsd.gauge('nginx.http.request.reading', stub['reading'])
+        self.statsd.gauge('nginx.http.request.current', stub['reading'] + stub['writing'])
 
         # counters
         counted_vars = {
-            'http.request.count': 'requests',
-            'http.conn.accepted': 'accepts',
-            'http.conn.dropped': 'dropped'
+            'nginx.http.request.count': 'requests',
+            'nginx.http.conn.accepted': 'accepts',
+            'nginx.http.conn.dropped': 'dropped'
         }
         for metric_name, stub_name in counted_vars.iteritems():
             value, stamp = stub[stub_name], stub_time
@@ -279,7 +279,6 @@ class NginxMetricsCollector(AbstractCollector):
         nginx.http.request.count = requests.total  ## counter
         nginx.http.request.current = requests.current
         """
-        status = {}
         stamp = int(time.time())
 
         # get plus status body
@@ -288,9 +287,9 @@ class NginxMetricsCollector(AbstractCollector):
         except:
             context.log.error('failed to check plus_status url %s' % self.object.plus_status_internal_url)
             context.log.debug('additional info', exc_info=True)
+            status = None
 
         if not status:
-            context.log.error('failed to check plus_status url %s' % self.object.plus_status_internal_url)
             return
 
         connections = status.get('connections', {})
@@ -298,16 +297,16 @@ class NginxMetricsCollector(AbstractCollector):
 
         # gauges
 
-        self.statsd.gauge('http.conn.active', connections.get('active'))
-        self.statsd.gauge('http.conn.idle', connections.get('idle'))
-        self.statsd.gauge('http.conn.current', connections.get('active') + connections.get('idle'))
-        self.statsd.gauge('http.request.current', requests.get('current'))
+        self.statsd.gauge('nginx.http.conn.active', connections.get('active'))
+        self.statsd.gauge('nginx.http.conn.idle', connections.get('idle'))
+        self.statsd.gauge('nginx.http.conn.current', connections.get('active') + connections.get('idle'))
+        self.statsd.gauge('nginx.http.request.current', requests.get('current'))
 
         # counters
         counted_vars = {
-            'http.request.count': requests.get('total'),
-            'http.conn.accepted': connections.get('accepted'),
-            'http.conn.dropped': connections.get('dropped'),
+            'nginx.http.request.count': requests.get('total'),
+            'nginx.http.conn.accepted': connections.get('accepted'),
+            'nginx.http.conn.dropped': connections.get('dropped'),
         }
         for metric_name, value in counted_vars.iteritems():
             prev_stamp, prev_value = self.previous_values.get(metric_name, [None, None])

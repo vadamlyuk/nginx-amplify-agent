@@ -39,7 +39,7 @@ RUN easy_install pip
 ADD . /amplify
 
 # Get pip to download and install requirements:
-RUN pip install gevent netifaces pytest pytest-xdist pyhamcrest ujson psutil==3.2.2 requests netaddr pyparsing setproctitle
+RUN pip install pytest pytest-xdist pyhamcrest requests_mock rstr==2.2.3 greenlet==0.4.9 gevent==1.0.2 lockfile==0.11.0 netaddr==0.7.18 netifaces==0.10.4 psutil==3.2.2 requests==2.8.1 ujson==1.33 python-daemon==2.0.6 pyparsing==2.0.1 setproctitle==1.1.9
 
 ENV AMPLIFY_ENVIRONMENT testing
 ENV PYTHONPATH /amplify

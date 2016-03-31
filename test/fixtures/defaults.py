@@ -11,3 +11,4 @@ __email__ = "dedm@nginx.com"
 DEFAULT_API_KEY = '12345abcde'
 DEFAULT_HOST = 'hostname.nginx'
 DEFAULT_UUID = '6789abcde'
+DEFAULT_API_URL = 'http://localhost'
