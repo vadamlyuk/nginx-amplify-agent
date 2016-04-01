@@ -35,7 +35,7 @@ class Process(psutil.Process):
         blocking = interval is not None and interval > 0.0
         num_cpus = psutil.cpu_count()
 
-        if psutil._POSIX:
+        if hasattr(psutil, '_POSIX') and psutil._POSIX:
             def timer():
                 return psutil._timer() * num_cpus
         else:
